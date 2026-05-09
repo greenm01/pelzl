@@ -1,12 +1,12 @@
 opam-version: "2.0"
 name: "orpie"
 version: "1.6.1"
-maintainer: "Paul Pelzl <pelzlpj@gmail.com>"
-authors: "Paul Pelzl <pelzlpj@gmail.com>"
-homepage: "https://github.com/pelzlpj/orpie"
-bug-reports: "https://github.com/pelzlpj/orpie/issues"
+maintainer: "Mason Austin Green <mason@greenm01.net>"
+authors: ["Paul Pelzl <pelzlpj@gmail.com>" "Mason Austin Green <mason@greenm01.net>"]
+homepage: "https://github.com/greenm01/pelzl"
+bug-reports: "https://github.com/greenm01/pelzl/issues"
 license: "GPL-3.0-only"
-dev-repo: "git+https://github.com/pelzlpj/orpie.git"
+dev-repo: "git+https://github.com/greenm01/pelzl.git"
 build: ["dune" "build" "-p" "orpie"]
 depends: [
   "ocaml" {>= "5.4.0"}

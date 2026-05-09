@@ -1,5 +1,6 @@
 (*  Orpie -- a fullscreen RPN calculator for the console
  *  Copyright (C) 2003-2004, 2005, 2006-2007, 2010, 2018 Paul Pelzl
+ *  Copyright (C) 2026 Mason Austin Green
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License, Version 3,
@@ -799,6 +800,7 @@ let draw_about (iface : interface_state_t) =
    attroff A.bold;
    assert (mvaddstr (vert_center - 5) (horiz_center - left_shift) 
    "Copyright (C) 2004 Paul Pelzl");
+ *  Copyright (C) 2026 Mason Austin Green
    assert (mvaddstr (vert_center - 3) (horiz_center - left_shift)
    "\"Because, frankly, GUI calculator");
    assert (mvaddstr (vert_center - 2) (horiz_center - left_shift) 
