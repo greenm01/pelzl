@@ -64,6 +64,7 @@ val empty_stack : stack_state
 val stack_length : stack_state -> int
 val stack_push : pelzl_data_t -> stack_state -> stack_state
 val stack_pop : stack_state -> (pelzl_data_t * stack_state)
+val stack_peek : int -> stack_state -> pelzl_data_t
 val stack_dup : stack_state -> stack_state
 val stack_swap : stack_state -> stack_state
 val stack_rolldown : int -> stack_state -> stack_state
@@ -198,6 +199,7 @@ val cmd_undo : calc_state -> calc_state
 val cmd_store : calc_state -> calc_state
 val cmd_purge : calc_state -> calc_state
 val cmd_eval : calc_state -> calc_state
+val eval1 : calc_state -> calc_state
 val evaln : int -> calc_state -> calc_state
 val get_variables : calc_state -> (string, pelzl_data_t) Hashtbl.t
 
