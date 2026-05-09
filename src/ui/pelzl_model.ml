@@ -7,6 +7,7 @@ type model = {
   entry : string;
   entry_mode : entry_mode;
   ui_mode : ui_mode;
+  slogan : string;
   error_msg : string option;
   show_help : bool;
   help_page : int;
@@ -25,6 +26,22 @@ type msg =
   | Cycle_base
   | Resize of int * int
   | Quit
+
+let all_taglines = [|
+  "RPN for the masses";
+  "'=' is for the weak";
+  "swap drop dup view";
+  "I hate the mouse";
+  "now w/ 800% more stack";
+  "powered by OCaml";
+  "compute _this_";
+  "interface as art";
+  "kick that data's ass";
+  "Nice.";
+  "configurability is key";
+  ":wq";
+  "the \"Mutt\" of calcs"
+|]
 
 let register_default_bindings () =
   let open Operations in
@@ -99,8 +116,10 @@ let register_default_bindings () =
 let init mode () =
   register_default_bindings ();
   (try Rcfile.process_rcfile None with _ -> ());
+  Random.self_init ();
+  let slogan = all_taglines.(Random.int (Array.length all_taglines)) in
   let calc = Pelzl_engine.empty_state in
   let calc = { calc with modes = { angle = Deg; base = Dec; complex = Rect } } in
-  ({ calc; entry = ""; entry_mode = Normal; ui_mode = mode; error_msg = None;
+  ({ calc; entry = ""; entry_mode = Normal; ui_mode = mode; slogan; error_msg = None;
      show_help = false; help_page = 0; width = 80; height = 24 },
    Mosaic.Cmd.none)

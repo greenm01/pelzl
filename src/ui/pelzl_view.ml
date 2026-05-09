@@ -34,7 +34,7 @@ let classic_view model =
   let base_str = match m.base with Bin -> "BIN" | Oct -> "OCT" | Hex -> "HEX" | Dec -> "DEC" in
   let complex_str = match m.complex with Rect -> "REC" | Polar -> "POL" in
   let help_text =
-    "Pelzl v1.0 -- RPN for the masses      \n" ^
+    (Printf.sprintf "Pelzl v1.0 -- %-24s \n" model.slogan) ^
     "--------------------------------------\n" ^
     "Calculator Modes:                     \n" ^
     (Printf.sprintf "  angle: %-3s  base: %-3s  complex: %-3s \n" angle_str base_str complex_str) ^

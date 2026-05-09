@@ -7,7 +7,19 @@ let test_init_empty () =
   check int "stack len" 0 (Pelzl_engine.stack_length model.calc.Pelzl_engine.stack);
   check string "entry" "" model.entry;
   check bool "show_help" false model.show_help;
-  check (option string) "error" None model.error_msg
+  check (option string) "error" None model.error_msg;
+  check bool "slogan not empty" true (String.length model.slogan > 0)
+
+let test_random_slogan () =
+  let rec collect n acc =
+    if n = 0 then acc
+    else
+      let model, _ = init Modern () in
+      collect (n - 1) (model.slogan :: acc)
+  in
+  let slogans = collect 100 [] in
+  let unique_slogans = List.sort_uniq String.compare slogans in
+  check bool "multiple slogans possible" true (List.length unique_slogans > 1)
 
 let test_push_entry () =
   let model, _cmd = init Modern () in
@@ -50,6 +62,7 @@ let test_ui_modes () =
 
 let ui_tests = [
   ("model init creates empty state", `Quick, test_init_empty);
+  ("random slogan initialization", `Quick, test_random_slogan);
   ("update push entry on enter", `Quick, test_push_entry);
   ("update backspace removes char", `Quick, test_backspace);
   ("update clear error", `Quick, test_clear_error);
