@@ -326,6 +326,7 @@ let exec_edit model op =
   | Operations.Digit -> model
 
 let eval_algebraic model =
+  let open Pelzl_engine in
   if model.entry = "" then { model with error_msg = None }
   else
     let original_entry = model.entry in
@@ -342,34 +343,34 @@ let eval_algebraic model =
         | t :: rest ->
             let new_calc = match t with
               | Algebraic.Num n -> 
-                  { calc with stack = Pelzl_engine.stack_push (Pelzl_engine.RpcFloatUnit (n, Units.empty_unit)) calc.stack }
+                  { calc with stack = stack_push (RpcFloatUnit (n, Units.empty_unit)) calc.stack }
               | Algebraic.Var v ->
-                  let value = try Hashtbl.find calc.variables v with Not_found -> Pelzl_engine.RpcFloatUnit (0., Units.empty_unit) in
-                  { calc with stack = Pelzl_engine.stack_push value calc.stack }
+                  let value = try Hashtbl.find calc.variables v with Not_found -> RpcFloatUnit (0., Units.empty_unit) in
+                  { calc with stack = stack_push value calc.stack }
               | Algebraic.Op c ->
                   (match c with
-                   | '+' -> Pelzl_engine.calc_add calc
-                   | '-' -> Pelzl_engine.calc_sub calc
-                   | '*' -> Pelzl_engine.calc_mult calc
-                   | '/' -> Pelzl_engine.calc_div calc
-                   | '%' -> Pelzl_engine.calc_mod calc
-                   | '^' -> Pelzl_engine.calc_pow calc
+                   | '+' -> calc_add calc
+                   | '-' -> calc_sub calc
+                   | '*' -> calc_mult calc
+                   | '/' -> calc_div calc
+                   | '%' -> calc_mod calc
+                   | '^' -> calc_pow calc
                    | _ -> calc)
               | Algebraic.Func f ->
                   (match String.lowercase_ascii f with
-                   | "sin" -> Pelzl_engine.calc_sin calc
-                   | "cos" -> Pelzl_engine.calc_cos calc
-                   | "tan" -> Pelzl_engine.calc_tan calc
-                   | "asin" -> Pelzl_engine.calc_asin calc
-                   | "acos" -> Pelzl_engine.calc_acos calc
-                   | "atan" -> Pelzl_engine.calc_atan calc
-                   | "sqrt" -> Pelzl_engine.calc_sqrt calc
-                   | "ln" -> Pelzl_engine.calc_ln calc
-                   | "log" -> Pelzl_engine.calc_log10 calc
-                   | "abs" -> Pelzl_engine.calc_abs calc
-                   | "exp" -> Pelzl_engine.calc_exp calc
-                   | "ceil" -> Pelzl_engine.calc_ceiling calc
-                   | "floor" -> Pelzl_engine.calc_floor calc
+                   | "sin" -> calc_sin calc
+                   | "cos" -> calc_cos calc
+                   | "tan" -> calc_tan calc
+                   | "asin" -> calc_asin calc
+                   | "acos" -> calc_acos calc
+                   | "atan" -> calc_atan calc
+                   | "sqrt" -> calc_sqrt calc
+                   | "ln" -> calc_ln calc
+                   | "log" -> calc_log10 calc
+                   | "abs" -> calc_abs calc
+                   | "exp" -> calc_exp calc
+                   | "ceil" -> calc_ceiling calc
+                   | "floor" -> calc_floor calc
                    | _ -> calc)
               | _ -> calc
             in
@@ -378,20 +379,20 @@ let eval_algebraic model =
       let final_calc = eval rpn model.calc in
       let final_calc = match var_name with
         | Some v ->
-            if Pelzl_engine.stack_length final_calc.stack > 0 then
-              let top, _ = Pelzl_engine.stack_pop final_calc.stack in
+            if stack_length final_calc.stack > 0 then
+              let top, _ = stack_pop final_calc.stack in
               Hashtbl.replace final_calc.variables v top;
               final_calc
             else final_calc
         | None -> final_calc
       in
-      let res_str = Pelzl_engine.get_display_line 1 final_calc in
+      let res_str = get_display_line 1 final_calc in
       let model' = { model with calc = final_calc; entry = ""; error_msg = None } in
       let model'' = add_history (Printf.sprintf "> %s" original_entry) model' in
       add_history (Printf.sprintf "Result: %s" res_str) model''
     with _ -> { model with error_msg = Some "Invalid expression" }
 
-let update msg model =
+let rec update msg model =
   match msg with
   | Key_input ev ->
       let data = Mosaic.Event.Key.data ev in

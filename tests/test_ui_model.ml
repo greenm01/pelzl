@@ -60,6 +60,15 @@ let test_ui_modes () =
   let model_c, _cmd = init Classic () in
   check bool "is classic" true (model_c.ui_mode = Classic)
 
+let test_algebraic_eval () =
+  let model, _cmd = init Repl () in
+  let model = { model with entry = "1+2*3" } in
+  let model', _cmd = update Enter model in
+  check string "entry cleared" "" model'.entry;
+  let res_str = Pelzl_engine.get_display_line 1 model'.calc in
+  check string "result correct" "7" (String.trim res_str);
+  check (option string) "no error" None model'.error_msg
+
 let ui_tests = [
   ("model init creates empty state", `Quick, test_init_empty);
   ("random slogan initialization", `Quick, test_random_slogan);
@@ -69,4 +78,5 @@ let ui_tests = [
   ("update toggle help", `Quick, test_toggle_help);
   ("update resize changes dimensions", `Quick, test_resize);
   ("ui mode selection", `Quick, test_ui_modes);
+  ("algebraic evaluation", `Quick, test_algebraic_eval);
 ]
