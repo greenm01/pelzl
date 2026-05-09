@@ -4,5 +4,5 @@
 
 (install
   (section man)
-  (files pelzl.1 pelzl-curses-keys.1 pelzlrc.5))
+  (files pelzl.1 pelzlrc.5))
 

@@ -13,7 +13,7 @@
 .TH "ORPIERC" "5" "28 August 2018" "configuration file for the Orpie calculator " "configuration file for the Orpie calculator "
 .SH NAME
 
-orpierc is the configuration textfile for the \fIorpie\fP(1)
+orpierc is the configuration textfile for the \fIpelzl\fP(1)
 console calculator. 
 .PP
 .SH INTRODUCTION
@@ -27,7 +27,7 @@ Orpie reads a run\-configuration textfile (generally /etc/orpierc or
 create a personalized configuration file in $HOME/.orpierc, and select 
 bindings that match your usage patterns. The recommended procedure is to ``include\&'' 
 the orpierc file provided with Orpie 
-(see INCLUDING OTHER RCFILES), 
+(see INCLUDING OTHER RCFILES)
 and add or remove settings as desired. 
 .PP
 .SH ORPIERC SYNTAX
@@ -47,7 +47,7 @@ Syntax: include \fIfilename_string\fP
 .br
 This syntax can be used to include one run\-configuration file within another. 
 This command could be used to load the default orpierc file (probably 
-found in /etc/orpierc) within your personalized rcfile, 
+found in /etc/orpierc) within your personalized rcfile
  {/.orpierc}. The filename string should be enclosed in quotes. 
 .PP
 .SS SETTING CONFIGURATION VARIABLES
@@ -63,10 +63,10 @@ Syntax: bind \fIkey_identifier operation\fP
 .br
 .br
 This command will bind a keypress to execute a calculator operation. 
-The various operations, which should not be enclosed in quotes, 
+The various operations, which should not be enclosed in quotes
 may be found in 
 the section on CALCULATOR OPERATIONS. 
-Key identifiers may be specified by strings that represent a single keypress, 
+Key identifiers may be specified by strings that represent a single keypress
 for example "m" (quotes included). The key may be prefixed with 
 "\\\\C" or "\\\\M" 
 to represent Control or Meta (Alt) modifiers, respectively; note that the 
@@ -158,7 +158,7 @@ Syntax: autobind \fIkey_identifier\fP
 .br
 .br
 In order to make repetitive calculations more pleasant, Orpie offers an automatic key 
-binding feature. When a function or command is executed using its abbreviation, 
+binding feature. When a function or command is executed using its abbreviation
 one of the keys selected by the autobind syntax will be 
 automatically bound to that operation (unless the operation has already been bound 
 to a key). The current set of autobindings can be viewed in the help panel by executing 
@@ -202,16 +202,16 @@ the section on CREATING KEY BINDINGS.
 The macro string should be a list of whitespace\-separated keypresses, e.g. 
 "2 <return> 2 +" (including quotes). 
 .PP
-This macro syntax provides a way to create small programs; by way of example, 
+This macro syntax provides a way to create small programs; by way of example
 the default orpierc file includes macros for the base 2 logarithm and the 
-binary entropy function (bound to L and H, respectively), 
+binary entropy function (bound to L and H, respectively)
 as well as ``register\&'' variable shortcuts (<f1> to <f12>). 
 .PP
 Macros may call other macros recursively. However, take care that a macro does 
 not call \fIitself\fP
 recursively; Orpie will not trap the infinite loop. 
 .PP
-Note that operation abbreviations may be accessed within macros. For example, 
+Note that operation abbreviations may be accessed within macros. For example
 macro "A" "\&' a b o u t <return>" would bind A to display 
 the ``about Orpie\&'' screen. 
 .PP
@@ -227,7 +227,7 @@ Units are defined in a two\-step process:
 .TP
 1.
 Define a set of orthogonal ``base units.\&'' All other units must be expressible 
-in terms of these base units. The base units can be given a preferred SI prefix, 
+in terms of these base units. The base units can be given a preferred SI prefix
 which will be used whenever the units are standardized (e.g. via ustand). 
 The unit symbols and preferred prefixes should all be quoted strings; to prefer 
 \fIno\fP
@@ -260,7 +260,7 @@ CONFIGURATION VARIABLES section.
 .B *
 datadir 
 .br 
-This variable should be set to the full path of the Orpie data directory, 
+This variable should be set to the full path of the Orpie data directory
 which will contain the calculator state save file, temporary buffers, etc. 
 The default directory is 
 "\\~/.orpie/". 
@@ -284,9 +284,9 @@ it on the default of "false" to display the help panel.
 conserve_memory 
 .br 
 Set this variable to "true" to minimize memory usage, or leave it on 
-the default of "false" to improve rendering performance. (By default, 
+the default of "false" to improve rendering performance. (By default
 Orpie caches multiple string representations of all stack elements. Very large 
-integers in particular require significant computation for string representation, 
+integers in particular require significant computation for string representation
 so caching these strings can make display updates much faster.) 
 .PP
 .SH CALCULATOR OPERATIONS
@@ -320,7 +320,7 @@ Compute the absolute value of the last stack element.
 .B *
 function_acos 
 .br 
-Compute the inverse cosine of the last stack element. For real numbers, 
+Compute the inverse cosine of the last stack element. For real numbers
 The result will be provided either in degrees or radians, depending on 
 the angle mode of the calculator. 
 .TP
@@ -338,13 +338,13 @@ Add last two stack elements.
 function_arg 
 .br 
 Compute the argument (phase angle of complex number) of the last stack 
-element. The value will be provided in either degrees or radians, 
+element. The value will be provided in either degrees or radians
 depending on the current angle mode of the calculator. 
 .TP
 .B *
 function_asin 
 .br 
-Compute the inverse sine of the last stack element. For real numbers, 
+Compute the inverse sine of the last stack element. For real numbers
 The result will be provided either in degrees or radians, depending on 
 the angle mode of the calculator. 
 .TP
@@ -356,7 +356,7 @@ Compute the inverse hyperbolic sine of the last stack element.
 .B *
 function_atan 
 .br 
-Compute the inverse tangent of the last stack element. For real numbers, 
+Compute the inverse tangent of the last stack element. For real numbers
 The result will be provided either in degrees or radians, depending on 
 the angle mode of the calculator. 
 .TP
@@ -371,7 +371,7 @@ function_binomial_coeff
 Compute the binomial coefficient (``n choose k\&'') formed by the last two 
 stack elements. If these arguments are real, the coefficient is computed 
 using a fast approximation to the log of the gamma function, and therefore 
-the result is subject to rounding errors. For exact integer arguments, 
+the result is subject to rounding errors. For exact integer arguments
 the coefficient is computed using exact arithmetic; this has the potential 
 to be a slow operation. 
 .TP
@@ -390,7 +390,7 @@ be ignored when computing the conversion.
 .B *
 function_cos 
 .br 
-Compute the cosine of the last stack element. If the argument is real, 
+Compute the cosine of the last stack element. If the argument is real
 it will be assumed to be either degrees or radians, depending on the 
 angle mode of the calculator. 
 .TP
@@ -432,8 +432,8 @@ Evaluate the exponential function of the last stack element.
 .B *
 function_factorial 
 .br 
-Compute the factorial of the last stack element. For a real argument, 
-this is computed using a fast approximation to the gamma function, 
+Compute the factorial of the last stack element. For a real argument
+this is computed using a fast approximation to the gamma function
 and therefore the result may be subject to rounding errors (or overflow). For an 
 exact integer argument, the factorial is computed using exact arithmetic; 
 this has the potential to be a slow operation. 
@@ -489,19 +489,19 @@ Compute the base\-10 logarithm of the last stack element.
 .B *
 function_maximum 
 .br 
-Find the maximum values of each of the columns of a real NxM matrix, 
+Find the maximum values of each of the columns of a real NxM matrix
 returning a 1xM matrix as a result. 
 .TP
 .B *
 function_minimum 
 .br 
-Find the minimum values of each of the columns of a real NxM matrix, 
+Find the minimum values of each of the columns of a real NxM matrix
 returning a 1xM matrix as a result. 
 .TP
 .B *
 function_mean 
 .br 
-Compute the sample means of each of the columns of a real NxM matrix, 
+Compute the sample means of each of the columns of a real NxM matrix
 returning a 1xM matrix as a result. 
 .TP
 .B *
@@ -528,7 +528,7 @@ elements \&'n\&' and \&'k\&': the number of ways of obtaining an ordered subset
 of k elements from a set of n elements. 
 If these arguments are real, the coefficient is computed 
 using a fast approximation to the log of the gamma function, and therefore 
-the result is subject to rounding errors. For exact integer arguments, 
+the result is subject to rounding errors. For exact integer arguments
 the coefficient is computed using exact arithmetic; this has the potential 
 to be a slow operation. 
 .TP
@@ -564,9 +564,9 @@ function_solve_linear
 .br 
 Solve a linear system of the form Ax = b, where A and b are the last 
 two elements on the stack. A must be a square matrix and b must 
-be a matrix with one column. This function does not compute inv(A), 
+be a matrix with one column. This function does not compute inv(A)
 but obtains the solution by a more efficient LU decomposition method. 
-This function is recommended over explicitly computing the inverse, 
+This function is recommended over explicitly computing the inverse
 especially when solving linear systems with relatively large dimension or 
 with poorly conditioned matrices. 
 .TP
@@ -619,7 +619,7 @@ Sum the squares of each of the columns of a real NxM matrix, returning a
 .B *
 function_tan 
 .br 
-Compute the tangent of the last stack element. If the argument is real, 
+Compute the tangent of the last stack element. If the argument is real
 it will be assumed to be either degrees or radians, depending on the 
 angle mode of the calculator. 
 .TP
@@ -722,7 +722,7 @@ Clear all elements from the stack.
 .B *
 command_cycle_base 
 .br 
-Cycle the base of exact integer representation between 2, 8, 
+Cycle the base of exact integer representation between 2, 8
 10, and 16 (bin, oct, dec, and hex). 
 .TP
 .B *
@@ -880,7 +880,7 @@ Enter a minus sign in input.
 .B *
 edit_scientific_notation_base 
 .br 
-Begin entering the scientific notation exponent of a real number, 
+Begin entering the scientific notation exponent of a real number
 or the base of an exact integer. 
 .TP
 .B *
@@ -1027,8 +1027,8 @@ Cancel entry of an integer.
 .PP
 .SH SEE ALSO
 
-\fIorpie\fP(1),
-\fIorpie\-curses\-keys\fP(1)
+\fIpelzl\fP(1)
+
 .PP
 .SH AUTHOR
 
