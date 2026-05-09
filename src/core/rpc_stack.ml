@@ -1,4 +1,4 @@
-(*  Orpie -- a fullscreen RPN calculator for the console
+(*  Pelzl -- a modern RPN calculator for the console
  *  Copyright (C) 2003-2004, 2005, 2006-2007, 2010, 2018 Paul Pelzl
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -45,9 +45,9 @@ open Printf
 
 exception Stack_error of string
 
-(* orpie_data_t values are returned by pop(), but the values
+(* pelzl_data_t values are returned by pop(), but the values
  * on the stack are in stack_data_t format *)
-type orpie_data_t = | RpcInt of Big_int.big_int
+type pelzl_data_t = | RpcInt of Big_int.big_int
                     | RpcFloatUnit of float * Units.unit_set_t
                     | RpcComplexUnit of Complex.t * Units.unit_set_t
                     | RpcFloatMatrixUnit of Gsl.Matrix.matrix * Units.unit_set_t
@@ -90,7 +90,7 @@ type stack_data_t = | StackInt of Big_int.big_int * stack_int_string_t
 
 let raise_invalid s = raise (Invalid_argument s)
 
-let orpie_data_of_stack_data (sd : stack_data_t) =
+let pelzl_data_of_stack_data (sd : stack_data_t) =
    match sd with
    |StackInt (ii, _)                   -> RpcInt ii
    |StackFloatUnit (ff, uu, _)         -> RpcFloatUnit (ff, uu)
@@ -99,7 +99,7 @@ let orpie_data_of_stack_data (sd : stack_data_t) =
    |StackComplexMatrixUnit (cm, uu, _) -> RpcComplexMatrixUnit (cm, uu)
    |StackVariable (vv, _)              -> RpcVariable vv
 
-let stack_data_of_orpie_data (od : orpie_data_t) =
+let stack_data_of_pelzl_data (od : pelzl_data_t) =
    match od with
    |RpcInt ii ->
       StackInt (ii, 
@@ -164,7 +164,7 @@ class rpc_stack conserve_memory_in =
       val mutable len = 0
       val mutable stack = 
          let (f0, u0) = funit_of_float 0.0 in
-         Array.make size_inc (stack_data_of_orpie_data
+         Array.make size_inc (stack_data_of_pelzl_data
          (RpcFloatUnit (f0, u0)))
       val conserve_memory = conserve_memory_in
       val render_stack = Stack.create ()
@@ -188,7 +188,7 @@ class rpc_stack conserve_memory_in =
          (* allocate a new stack if necessary *)
          if len >= Array.length stack then begin
             let new_stack = Array.make ((Array.length stack) + size_inc)
-            (stack_data_of_orpie_data (RpcFloatUnit 
+            (stack_data_of_pelzl_data (RpcFloatUnit 
             (0.0, Units.empty_unit))) in
             Array.blit stack 0 new_stack 0 (Array.length stack);
             stack <- new_stack
@@ -196,9 +196,9 @@ class rpc_stack conserve_memory_in =
             ()
 
 
-      method push (v : orpie_data_t) =
+      method push (v : pelzl_data_t) =
          self#expand_size ();
-         let new_el = stack_data_of_orpie_data v in
+         let new_el = stack_data_of_pelzl_data v in
          stack.(len) <- new_el;
          len <- len + 1;
          if conserve_memory then ()
@@ -217,7 +217,7 @@ class rpc_stack conserve_memory_in =
          let pop_result =
             if len > 0 then begin
                len <- len - 1;
-               orpie_data_of_stack_data stack.(len)
+               pelzl_data_of_stack_data stack.(len)
             end else
                raise (Stack_error "cannot pop empty stack");
          in
@@ -329,7 +329,7 @@ class rpc_stack conserve_memory_in =
          let peek_result =
             if el_num <= len then
                let actual_el_num = len - el_num in
-               orpie_data_of_stack_data stack.(actual_el_num)
+               pelzl_data_of_stack_data stack.(actual_el_num)
             else
                let s = Printf.sprintf "cannot access nonexistant stack element %d"
                el_num in

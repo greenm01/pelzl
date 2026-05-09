@@ -1,4 +1,4 @@
-(*  Orpie -- a fullscreen RPN calculator for the console
+(*  Pelzl -- a modern RPN calculator for the console
  *  Copyright (C) 2003-2004, 2005, 2006-2007, 2010, 2018 Paul Pelzl
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -19,7 +19,7 @@
  *)
 
 (* rcfile.ml
- * This file includes everything associated with processing the orpierc file.
+ * This file includes everything associated with processing the pelzlrc file.
  * In particular, this includes a number of hashtables used to store the
  * bindings of curses keypresses to calculator operations. *)
 
@@ -51,8 +51,8 @@ let table_key_varedit  = Hashtbl.create 20;;
 let table_varedit_key  = Hashtbl.create 20;;
 
 
-(* Default directory for orpie data *)
-let datadir = ref "~/.orpie"
+(* Default directory for pelzl data *)
+let datadir = ref "~/.pelzl"
 (* Default editor for fullscreen viewing *)
 let editor = ref "vi";;
 (* Whether or not to hide the help panel *)
@@ -576,7 +576,7 @@ let operation_of_string command_str =
 
 
 
-(* Parse a line from an Orpie configuration file.  This operates on a stream
+(* Parse a line from an Pelzl configuration file.  This operates on a stream
  * corresponding to a non-empty line from the file.  It will match commands
  * of the form
  *    bind key command
@@ -938,7 +938,7 @@ let generate_autobind_array () =
 
 
 (* compare a set of autobindings saved to disk to the set loaded from the
- * orpierc file.  If the autobindings match and the hashtbl abbreviations
+ * pelzlrc file.  If the autobindings match and the hashtbl abbreviations
  * are the same, then use the saved version. *)
 let validate_saved_autobindings saved_autobind =
    if Array.length !autobind_keys = Array.length saved_autobind then
@@ -977,14 +977,14 @@ let validate_saved_autobindings saved_autobind =
              
 
 
-(* try opening the rc file, first looking at $HOME/.orpierc, 
- * then looking at $PREFIX/etc/orpierc *)
+(* try opening the rc file, first looking at $HOME/.pelzlrc, 
+ * then looking at $PREFIX/etc/pelzlrc *)
 let open_rcfile rcfile_op =
    match rcfile_op with
    |None ->
       let home_rcfile =
          let homedir = Sys.getenv "HOME" in
-         homedir ^ "/.orpierc"
+         homedir ^ "/.pelzlrc"
       in
       let rcfile_fullpath = 
          (* expand out any occurrences of ${prefix} that autoconf
@@ -992,7 +992,7 @@ let open_rcfile rcfile_op =
          let prefix_regex = Str.regexp "\\${prefix}" in
          let expanded_sysconfdir = Str.global_replace prefix_regex 
          Install.prefix Install.sysconfdir in
-         Utility.join_path expanded_sysconfdir "orpierc"
+         Utility.join_path expanded_sysconfdir "pelzlrc"
       in
       begin try (open_in home_rcfile, home_rcfile)
       with Sys_error error_str ->

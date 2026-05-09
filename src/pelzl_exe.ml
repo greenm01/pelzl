@@ -3,7 +3,7 @@
  *)
 let run_classic () =
   let open Curses in
-  (* load orpierc *)
+  (* load pelzlrc *)
   Rcfile.process_rcfile None;
 
   let initialize_screen () =

@@ -1,4 +1,4 @@
-(*  Orpie -- a fullscreen RPN calculator for the console
+(*  Pelzl -- a modern RPN calculator for the console
  *  Copyright (C) 2003-2004, 2005, 2006-2007, 2010, 2018 Paul Pelzl
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -63,10 +63,10 @@ let create_windows screen =
          entry_win = bottom_win; ew_lines = 2; ew_cols = 40}
       else
          (endwin ();
-         failwith "Orpie requires at least a 40 column window.")
+         failwith "Pelzl requires at least a 40 column window.")
    else
       (endwin (); 
-      failwith "Orpie requires at least a 24 line window.");;
+      failwith "Pelzl requires at least a 24 line window.");;
 
 
 (* resize the various windows to fit the new terminal size *)
@@ -120,10 +120,10 @@ let resize_subwins scr =
          end
       else
          (endwin ();
-         failwith "Orpie requires at least a 40 column window.")
+         failwith "Pelzl requires at least a 40 column window.")
    else
       (endwin (); 
-      failwith "Orpie requires at least a 24 line window.");;
+      failwith "Pelzl requires at least a 24 line window.");;
 
 
 

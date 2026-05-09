@@ -1,4 +1,4 @@
-(*  Orpie -- a fullscreen RPN calculator for the console
+(*  Pelzl -- a modern RPN calculator for the console
  *  Copyright (C) 2003-2004, 2005, 2006-2007, 2010, 2018 Paul Pelzl
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -20,7 +20,7 @@
 
 (* txtin_lexer.mll
  *
- * Orpie can handle input of data from a textfile created by an external editor.
+ * Pelzl can handle input of data from a textfile created by an external editor.
  * editor_lexer.mll generates a lexer that tokenizes this data.
  *)
 

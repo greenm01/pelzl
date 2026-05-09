@@ -1,5 +1,5 @@
 %{
-(*  Orpie -- a fullscreen RPN calculator for the console
+(*  Pelzl -- a modern RPN calculator for the console
  *  Copyright (C) 2003-2004, 2005, 2006-2007, 2010, 2018 Paul Pelzl
  *
 *  Copyright (C) 2026 Mason Austin Green
@@ -21,7 +21,7 @@
 
 (* txtinr_parser.mly
  *
- * Orpie can handle input of data from a textfile created by an external editor.
+ * Pelzl can handle input of data from a textfile created by an external editor.
  * editor_parser.mly generates a parser that works in conjunction with
  * editor_lexer.mll to enter this data on the stack.
  *)
@@ -34,7 +34,7 @@ type f_or_c = | F of float
 
 (* decode a matrix of type CF and decide
  * whether it has float elements or complex elements,
- * then create the appropriate orpie_data_t type. *)
+ * then create the appropriate pelzl_data_t type. *)
 let decode_float_complex_matrix mat u_str =
    let num_rows = Array.length mat
    and num_cols = Array.length mat.(0) in
@@ -135,7 +135,7 @@ let decode_matrix_units mat_rows u_str =
    (* matrix_rows is a list of rows, each of which
     * is a list of elements; create a 2d array 
     * from these lists, and generate the appropriate
-    * orpie_data_t from the 2d array. *)
+    * pelzl_data_t from the 2d array. *)
    let num_rows = List.length mat_rows in
    let num_cols = List.length (List.hd mat_rows) in
    let mat = Array.make_matrix num_rows num_cols (F 0.0) in
@@ -170,12 +170,12 @@ let decode_variable v_str =
 /* parse the input under the assumption that angles
  * are provided using radian measure */
 %start decode_data_rad
-%type <Rpc_stack.orpie_data_t list> decode_data_rad
+%type <Rpc_stack.pelzl_data_t list> decode_data_rad
 
 /* parse the input under the assumption that angles
  * are provided using degree measure */
 %start decode_data_deg
-%type <Rpc_stack.orpie_data_t list> decode_data_deg
+%type <Rpc_stack.pelzl_data_t list> decode_data_deg
 
 %%
 /* rules */

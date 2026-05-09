@@ -1,4 +1,4 @@
-(*  Orpie -- a fullscreen RPN calculator for the console
+(*  Pelzl -- a modern RPN calculator for the console
  *  Copyright (C) 2003-2004, 2005, 2006-2007, 2010, 2018 Paul Pelzl
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -19,7 +19,7 @@
  *)
 
 (* rpc_calc.ml
- * This file defines Orpie's underlying calculator object.  All calculator
+ * This file defines Pelzl's underlying calculator object.  All calculator
  * functions and commands have a corresponding method in this object. *)
 
 open Rpc_stack;;
@@ -27,13 +27,13 @@ open Gsl_assist;;
 open Big_int;;
 
 type interruptable_args_t =
-   | Gcd_args of big_int * big_int * orpie_data_t * orpie_data_t
-   | Lcm_args of big_int * big_int * big_int * orpie_data_t * orpie_data_t
-   | Fact_args of big_int * big_int * orpie_data_t
+   | Gcd_args of big_int * big_int * pelzl_data_t * pelzl_data_t
+   | Lcm_args of big_int * big_int * big_int * pelzl_data_t * pelzl_data_t
+   | Fact_args of big_int * big_int * pelzl_data_t
    | Binom_args of big_int * big_int * big_int * 
-                   big_int * orpie_data_t * orpie_data_t
+                   big_int * pelzl_data_t * pelzl_data_t
    | Perm_args of big_int * big_int * big_int *
-                  orpie_data_t * orpie_data_t
+                  pelzl_data_t * pelzl_data_t
    | NoArgs;;
 
 let pi = 3.14159265358979323846;;
@@ -1563,7 +1563,7 @@ class rpc_calc conserve_memory =
             let _ = stack#pop () in ()
          done
 
-      method push (v : orpie_data_t) =
+      method push (v : pelzl_data_t) =
          self#backup ();
          stack#push v
 

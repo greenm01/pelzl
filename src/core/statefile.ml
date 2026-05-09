@@ -1,4 +1,4 @@
-(*  Orpie -- a fullscreen RPN calculator for the console
+(*  Pelzl -- a modern RPN calculator for the console
  *  Copyright (C) 2003-2004, 2005, 2006-2007, 2010, 2018 Paul Pelzl
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -28,7 +28,7 @@ open Rpc_stack
 
 (* save to a datafile using the Marshal module *)
 let save_state ((modes : calculator_modes),
-(variables : (string, orpie_data_t) Hashtbl.t),
+(variables : (string, pelzl_data_t) Hashtbl.t),
 ((data_stack : stack_data_t array), (data_len : int))) =
    try
       let version_file = Utility.join_path !(Rcfile.datadir) "version" in
@@ -67,7 +67,7 @@ let load_state () =
                let load_channel = Utility.expand_open_in_bin datafile in
                let data_modes, data_variables, data_autobind_keys, data_stack, data_len = 
                   (Marshal.from_channel load_channel : calculator_modes * 
-                  ((string, orpie_data_t) Hashtbl.t) * 
+                  ((string, pelzl_data_t) Hashtbl.t) * 
                   (int * string * Operations.operation_t option * int) array *
                   (stack_data_t array) * int)
                in

@@ -33,20 +33,20 @@ jobs:
 
     - name: Prepare artifact
       run: |
-        cp _build/default/src/orpie/main.exe orpie
-        chmod +x orpie
-        strip orpie
+        cp _build/default/src/pelzl/main.exe pelzl
+        chmod +x pelzl
+        strip pelzl
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: orpie-linux-x86_64
-        path: orpie
+        name: pelzl-linux-x86_64
+        path: pelzl
 
     - name: Release
       if: github.event_name == 'release'
       uses: softprops/action-gh-release@v2
       with:
-        files: orpie
+        files: pelzl
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

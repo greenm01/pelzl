@@ -1,4 +1,4 @@
-(*  Orpie -- a fullscreen RPN calculator for the console
+(*  Pelzl -- a modern RPN calculator for the console
  *  Copyright (C) 2003-2004, 2005, 2006-2007, 2010, 2018 Paul Pelzl
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -697,7 +697,7 @@ let draw_help (iface : interface_state_t) =
    |Some win ->
       wclear win;
       wattron win WA.bold;
-      let s = sprintf "Orpie v%s" iface.version in
+      let s = sprintf "Pelzl v%s" iface.version in
       mvwaddstr_safe win 0 0 s;
       wattroff win WA.bold;
       let h_pos = String.length s in
@@ -796,7 +796,7 @@ let draw_about (iface : interface_state_t) =
    let left_shift = 17 in
    attron A.bold;
    assert (mvaddstr (vert_center - 6) (horiz_center - left_shift) 
-   ("Orpie v" ^ iface.version));
+   ("Pelzl v" ^ iface.version));
    attroff A.bold;
    assert (mvaddstr (vert_center - 5) (horiz_center - left_shift) 
    "Copyright (C) 2004 Paul Pelzl");
@@ -806,7 +806,7 @@ let draw_about (iface : interface_state_t) =
    " programs are pure evil.  ");
    attron A.bold;
    assert (mvaddstr (vert_center - 2) (horiz_center - left_shift + 26) 
-   "Orpie");
+   "Pelzl");
    attroff A.bold;
    assert (mvaddstr (vert_center - 2) (horiz_center - left_shift + 31) 
    ", on");
@@ -815,7 +815,7 @@ let draw_about (iface : interface_state_t) =
    assert (mvaddstr (vert_center + 0) (horiz_center - left_shift)
    " bit evil.\"");
    assert (mvaddstr (vert_center + 2) (horiz_center - left_shift)
-   "Orpie comes with ABSOLUTELY NO");
+   "Pelzl comes with ABSOLUTELY NO");
    assert (mvaddstr (vert_center + 3) (horiz_center - left_shift)
    "WARRANTY.  This is free software,");
    assert (mvaddstr (vert_center + 4) (horiz_center - left_shift)

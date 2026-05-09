@@ -1,12 +1,12 @@
-Orpie README
+Pelzl README
 ============
 
-Orpie is a Curses-based RPN calculator.
+Pelzl is a Curses-based RPN calculator.
 
 == Installation
 === Using OPAM
-The recommended method for installing Orpie is to use
-https://opam.ocaml.org/[OPAM].  +opam install orpie+ should get the job done.
+The recommended method for installing Pelzl is to use
+https://opam.ocaml.org/[OPAM].  +opam install pelzl+ should get the job done.
 
 === Without using OPAM
 If you want to install manually, you will need the following OCaml packages installed:
@@ -25,7 +25,7 @@ If you have satisfied all the dependencies, then use the Makefile to build:
 $ export PREFIX=/usr
 
 # optionally set a staging directory (useful if you're creating a package)
-$ export DESTDIR=/tmp/orpie
+$ export DESTDIR=/tmp/pelzl
 
 # build
 $ make
