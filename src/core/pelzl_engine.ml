@@ -1567,8 +1567,7 @@ let cmd_eval st = eval1 st
 
 let string_of_big_int_base_gen n base =
   let rec aux n acc =
-    if eq_big_int n unit_big_int then acc
-    else if eq_big_int n zero_big_int then "0"
+    if eq_big_int n zero_big_int then acc
     else
       let q, r = quomod_big_int n (big_int_of_int base) in
       let digit =
