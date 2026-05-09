@@ -2,7 +2,7 @@
 _build
 _opam
 .merlin
-orpie.install
+pelzl.install
 *.cmi
 *.cmo
 *.cmx

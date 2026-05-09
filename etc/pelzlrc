@@ -1,8 +1,8 @@
-# orpierc
-# default key bindings and other settings for the Orpie calculator
+# pelzlrc
+# default key bindings and other settings for the Pelzl calculator
 
-# directory for storing Orpie data
-set datadir="~/.orpie/"
+# directory for storing Pelzl data
+set datadir="~/.pelzl/"
 # editor used for fullscreen viewing of stack elements
 set editor="vi"
 # whether or not to hide the help panel

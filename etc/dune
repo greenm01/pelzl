@@ -1,4 +1,4 @@
 (install
   (section etc)
-  (files orpierc))
+  (files pelzlrc))
 

@@ -49,12 +49,12 @@ td p{margin:0px;}
 .theorem{text-align:left;margin:1ex auto 1ex 0ex;}
 .part{margin:2ex auto;text-align:center}
 </style>
-<title>Orpie v1.6 User Manual
+<title>Pelzl v1.6 User Manual
 </title>
 </head>
 <body >
 <!--HEVEA command line is: hevea -fix manual.tex -->
-<!--CUT STYLE article--><!--CUT DEF section 1 --><table class="title"><tr><td style="padding:1ex"><h1 class="titlemain">Orpie v1.6 User Manual</h1><h3 class="titlerest">Paul J. Pelzl</h3><h3 class="titlerest">August 27, 2018</h3></td></tr>
+<!--CUT STYLE article--><!--CUT DEF section 1 --><table class="title"><tr><td style="padding:1ex"><h1 class="titlemain">Pelzl v1.6 User Manual</h1><h3 class="titlerest">Paul J. Pelzl</h3><h3 class="titlerest">August 27, 2018</h3></td></tr>
 </table><div class="center">
 <em>&#X201C;Because the equals key is for the weak.&#X201D;</em>
 </div><!--TOC section id="sec1" Contents-->
@@ -84,7 +84,7 @@ td p{margin:0px;}
 </li></ul>
 </li><li class="li-toc"><a href="#sec21">4&#XA0;&#XA0;Advanced Configuration</a>
 <ul class="toc"><li class="li-toc">
-<a href="#sec22">4.1&#XA0;&#XA0;<span style="font-family:monospace">orpierc</span> Syntax</a>
+<a href="#sec22">4.1&#XA0;&#XA0;<span style="font-family:monospace">pelzlrc</span> Syntax</a>
 <ul class="toc"><li class="li-toc">
 <a href="#sec23">4.1.1&#XA0;&#XA0;Including Other Rcfiles</a>
 </li><li class="li-toc"><a href="#sec24">4.1.2&#XA0;&#XA0;Setting Configuration Variables</a>
@@ -114,23 +114,23 @@ td p{margin:0px;}
 </li></ul>
 <!--TOC section id="sec2" Introduction-->
 <h2 id="sec2" class="section">1&#XA0;&#XA0;Introduction</h2><!--SEC END --><p>
-Orpie is a console-based RPN (reverse polish notation) desktop
+Pelzl is a console-based RPN (reverse polish notation) desktop
 calculator. The interface is similar to that of modern
 Hewlett-Packard<sup><span style="font-style:italic">TM</span></sup> calculators, but has been optimized for efficiency on
 a PC keyboard. The design is also influenced to some degree by the 
  <a href="http://www.mutt.org">Mutt email client</a> 
 and the 
- <a href="http://vim.sf.net">Vim editor</a>.  </p><p>Orpie does not have graphing capability, nor does it offer much in the way of a
+ <a href="http://vim.sf.net">Vim editor</a>.  </p><p>Pelzl does not have graphing capability, nor does it offer much in the way of a
 programming interface; other applications such as 
  <a href="http://www.octave.org">GNU Octave</a>.  
-are already very effective for such tasks. Orpie focuses specifically on
-helping you to crunch numbers quickly.</p><p>Orpie is written in
+are already very effective for such tasks. Pelzl focuses specifically on
+helping you to crunch numbers quickly.</p><p>Pelzl is written in
  <a href="http://ocaml.org/">OCaml</a>). </p>
 <!--TOC section id="sec3" Installation-->
 <h2 id="sec3" class="section">2&#XA0;&#XA0;Installation</h2><!--SEC END --><p>
-The recommended method to install Orpie is through the
+The recommended method to install Pelzl is through the
  <a href="https://opam.ocaml.org/">OPAM package manager</a>. 
-&#X201C;<span style="font-family:monospace">opam install orpie</span>&#X201D; should get the job done.</p><p>If you want to install without using OPAM, you will need the following OCaml packages installed:
+&#X201C;<span style="font-family:monospace">opam install pelzl</span>&#X201D; should get the job done.</p><p>If you want to install without using OPAM, you will need the following OCaml packages installed:
 </p><ul class="itemize"><li class="li-itemize">
 OCaml 4.03+
 </li><li class="li-itemize">dune
@@ -144,7 +144,7 @@ If you have satisfied all the dependencies, then use the Makefile to build:
 $ export PREFIX=/usr
 
 # optionally set a staging directory (useful if you're creating a package)
-$ export DESTDIR=/tmp/orpie
+$ export DESTDIR=/tmp/pelzl
 
 # build
 $ make
@@ -154,18 +154,18 @@ $ make install
 </pre>
 <!--TOC section id="sec4" Quick Start-->
 <h2 id="sec4" class="section">3&#XA0;&#XA0;Quick Start</h2><!--SEC END --><p>
-This section describes how to use Orpie in its default configuration. After
+This section describes how to use Pelzl in its default configuration. After
 familiarizing yourself with the basic operations as outlined in this section,
 you may wish to consult 
 Section <a href="#advanced">4</a> 
-to see how Orpie can be configured to better fit your needs.</p>
+to see how Pelzl can be configured to better fit your needs.</p>
 <!--TOC subsection id="sec5" Overview-->
 <h3 id="sec5" class="subsection">3.1&#XA0;&#XA0;Overview</h3><!--SEC END --><p>
-You can start the calculator by executing <span style="font-family:monospace">orpie</span>.
+You can start the calculator by executing <span style="font-family:monospace">pelzl</span>.
 The interface has two
 panels. The left panel combines status information with context-sensitive help;
 the right panel represents the calculator&#X2019;s stack. (Note that the left panel
-will be hidden if Orpie is run in a terminal with less than 80 columns.)</p><p>In general, you perform calculations by first entering data on to the stack,
+will be hidden if Pelzl is run in a terminal with less than 80 columns.)</p><p>In general, you perform calculations by first entering data on to the stack,
 then executing functions that operate on the stack data. As an example, you can
 hit <span style="font-family:monospace">1&lt;enter&gt;2&lt;enter&gt;+</span> in order to add 1 and 2.</p>
 <!--TOC subsection id="sec6" Entering Data-->
@@ -184,7 +184,7 @@ for negation. Here are some examples:
 </div>
 <!--TOC subsubsection id="sec8" Entering Complex Numbers-->
 <h4 id="sec8" class="subsubsection">3.2.2&#XA0;&#XA0;Entering Complex Numbers</h4><!--SEC END --><p>
-Orpie can represent complex numbers using either cartesian (rectangular) or
+Pelzl can represent complex numbers using either cartesian (rectangular) or
 polar coordinates. See 
 Section <a href="#rectpolar">3.5</a> 
 to see how to change the complex number display mode.</p><p>A complex number is entered by first pressing &#X2019;<span style="font-family:monospace">(</span>&#X2019;, then entering the real
@@ -264,18 +264,18 @@ underscores. Example:
 <tr><td style="text-align:right;border:solid 1px;white-space:nowrap" > <span style="font-family:monospace">@myvar</span></td><td style="text-align:right;border:solid 1px;white-space:nowrap" ><span style="font-family:monospace">@ myvar</span></td></tr>
 </table>
 </div><p>
-Orpie also supports autocompletion of variable names. The help panel displays a
+Pelzl also supports autocompletion of variable names. The help panel displays a
 list of pre-existing variables that partially match the name currently being entered.
 You can press &#X2019;<span style="font-family:monospace">&lt;tab&gt;</span>&#X2019; to iterate through the list of matching variables.</p><p>As a shortcut, keys <span style="font-family:monospace">&lt;f1&gt;-&lt;f4&gt;</span> will enter the variables (&#X201C;registers&#X201D;) 
 <span style="font-family:monospace">@ r01</span> through <span style="font-family:monospace">@ r04</span>.</p>
 <!--TOC subsubsection id="sec13" Entering Physical Constants-->
 <h4 id="sec13" class="subsubsection">3.2.7&#XA0;&#XA0;Entering Physical Constants</h4><!--SEC END --><p>
-Orpie includes definitions for a number of fundamental physical constants. To
+Pelzl includes definitions for a number of fundamental physical constants. To
 enter a constant, press &#X2019;<span style="font-family:monospace">C</span>&#X2019;, followed by the first few letters/digits
-of the constant&#X2019;s symbol, then hit enter. Orpie offers an autocompletion
+of the constant&#X2019;s symbol, then hit enter. Pelzl offers an autocompletion
 feature for physical constants, so you only need to type enough of the constant
 to identify it uniquely. A list of matching constants will appear in the left
-panel of the display, to assist you in finding the desired choice.</p><p>The following is a list of Orpie&#X2019;s physical constant symbols:
+panel of the display, to assist you in finding the desired choice.</p><p>The following is a list of Pelzl&#X2019;s physical constant symbols:
 </p><div class="center">
 <table border=1  style="border-spacing:0;" class="cellpadding1"><tr><td style="text-align:right;border:solid 1px;white-space:nowrap" > Symbol</td><td style="text-align:left;border:solid 1px;white-space:nowrap" >Physical Constant </td></tr>
 <tr><td style="text-align:right;border:solid 1px;white-space:nowrap" > <span style="font-family:monospace">NA</span></td><td style="text-align:left;border:solid 1px;white-space:nowrap" >Avagadro&#X2019;s number </td></tr>
@@ -307,13 +307,13 @@ panel of the display, to assist you in finding the desired choice.</p><p>The fol
 <tr><td style="text-align:right;border:solid 1px;white-space:nowrap" > <span style="font-family:monospace">lamc</span></td><td style="text-align:left;border:solid 1px;white-space:nowrap" >Compton wavelength </td></tr>
 <tr><td style="text-align:right;border:solid 1px;white-space:nowrap" > <span style="font-family:monospace">c3</span></td><td style="text-align:left;border:solid 1px;white-space:nowrap" >Wien&#X2019;s constant </td></tr>
 </table>
-</div><p>All physical constants are defined in the Orpie run-configuration file; consult
+</div><p>All physical constants are defined in the Pelzl run-configuration file; consult
 Section <a href="#advanced">4</a> 
 if you wish to define your own constants or change the existing definitions.</p>
 <!--TOC subsubsection id="sec14" Entering Data With an External Editor-->
 <h4 id="sec14" class="subsubsection">3.2.8&#XA0;&#XA0;Entering Data With an External Editor</h4><!--SEC END --><p>
 <a id="editor"></a>
-Orpie can also parse input entered via an external editor. You may find this to be
+Pelzl can also parse input entered via an external editor. You may find this to be
 a convenient method for entering large matrices. Pressing &#X2019;<span style="font-family:monospace">E</span>&#X2019; will
 launch the external editor, and the various data types may be entered as illustrated
 by the examples below:
@@ -374,9 +374,9 @@ to evaluate variables before performing arithmetic operations on them.</p>
 <a id="abbrevfunctions"></a>
 One could bind nearly all calculator operations to specific keypresses, but this
 would rapidly get confusing since the PC keyboard is not labeled as nicely as a
-calculator keyboard is. For this reason, Orpie includes an 
+calculator keyboard is. For this reason, Pelzl includes an 
 <em>abbreviation</em> syntax.</p><p>To activate an abbreviation, press &#X2019;<span style="font-family:monospace">&#X2019;</span>&#X2019; (quote key), followed by the
-first few letters/digits of the abbreviation, then hit enter. Orpie offers an
+first few letters/digits of the abbreviation, then hit enter. Pelzl offers an
 autocompletion feature for abbreviations, so you only need to type enough of
 the operation to identify it uniquely. The matching abbreviations will appear
 in the left panel of the display, to assist you in finding the appropriate
@@ -448,7 +448,7 @@ entry buffer (the bottom line of the screen) is empty.</p><p>The following funct
 <tr><td style="text-align:left;border:solid 1px;white-space:nowrap" > <span style="font-family:monospace">uvalue</span></td><td style="text-align:left;border:solid 1px;white-space:nowrap" >drop the units of the last element </td></tr>
 </table>
 </div><p>Entering abbreviations can become tedious when performing repetitive calculations.
-To save some keystrokes, Orpie will automatically bind recently-used operations with no prexisting
+To save some keystrokes, Pelzl will automatically bind recently-used operations with no prexisting
 binding to keys <span style="font-family:monospace">&lt;f5&gt;-&lt;f12&gt;</span>. The current autobindings can be viewed by pressing <span style="font-family:monospace">&#X2019;h&#X2019;</span>
 to cycle between the various pages of the help panel.</p>
 <!--TOC subsection id="sec17" Executing Basic Command Operations-->
@@ -475,7 +475,7 @@ a number of basic calculator commands have been bound to single keypresses:
 <tr><td style="text-align:right;border:solid 1px;white-space:nowrap" ><span style="font-family:monospace">P</span></td><td style="text-align:left;border:solid 1px;white-space:nowrap" >enter 3.1415&#X2026;on the stack </td></tr>
 <tr><td style="text-align:right;border:solid 1px;white-space:nowrap" ><span style="font-family:monospace">C-L</span></td><td style="text-align:left;border:solid 1px;white-space:nowrap" >refresh the display </td></tr>
 <tr><td style="text-align:right;border:solid 1px;white-space:nowrap" > <span style="font-family:monospace">&lt;up&gt;</span></td><td style="text-align:left;border:solid 1px;white-space:nowrap" >begin stack browsing mode </td></tr>
-<tr><td style="text-align:right;border:solid 1px;white-space:nowrap" > <span style="font-family:monospace">Q</span></td><td style="text-align:left;border:solid 1px;white-space:nowrap" >quit Orpie </td></tr>
+<tr><td style="text-align:right;border:solid 1px;white-space:nowrap" > <span style="font-family:monospace">Q</span></td><td style="text-align:left;border:solid 1px;white-space:nowrap" >quit Pelzl </td></tr>
 </table>
 </div>
 <!--TOC subsection id="sec18" Executing Command Abbreviations-->
@@ -504,13 +504,13 @@ have been implemented using the abbreviation syntax:
 <tr><td style="text-align:left;border:solid 1px;white-space:nowrap" ><span style="font-family:monospace">pi</span></td><td style="text-align:left;border:solid 1px;white-space:nowrap" >enter 3.1415&#X2026;on the stack </td></tr>
 <tr><td style="text-align:left;border:solid 1px;white-space:nowrap" ><span style="font-family:monospace">rand</span></td><td style="text-align:left;border:solid 1px;white-space:nowrap" >generate a random number between 0 and 1 (uniformly distributed) </td></tr>
 <tr><td style="text-align:left;border:solid 1px;white-space:nowrap" > <span style="font-family:monospace">refresh</span></td><td style="text-align:left;border:solid 1px;white-space:nowrap" >refresh the display </td></tr>
-<tr><td style="text-align:left;border:solid 1px;white-space:nowrap" > <span style="font-family:monospace">about</span></td><td style="text-align:left;border:solid 1px;white-space:nowrap" >display a nifty &#X201C;About Orpie&#X201D; screen </td></tr>
-<tr><td style="text-align:left;border:solid 1px;white-space:nowrap" > <span style="font-family:monospace">quit</span></td><td style="text-align:left;border:solid 1px;white-space:nowrap" >quit Orpie </td></tr>
+<tr><td style="text-align:left;border:solid 1px;white-space:nowrap" > <span style="font-family:monospace">about</span></td><td style="text-align:left;border:solid 1px;white-space:nowrap" >display a nifty &#X201C;About Pelzl&#X201D; screen </td></tr>
+<tr><td style="text-align:left;border:solid 1px;white-space:nowrap" > <span style="font-family:monospace">quit</span></td><td style="text-align:left;border:solid 1px;white-space:nowrap" >quit Pelzl </td></tr>
 </table>
 </div>
 <!--TOC subsection id="sec19" Browsing the Stack-->
 <h3 id="sec19" class="subsection">3.7&#XA0;&#XA0;Browsing the Stack</h3><!--SEC END --><p>
-Orpie offers a <em>stack browsing mode</em> to assist in viewing and manipulating
+Pelzl offers a <em>stack browsing mode</em> to assist in viewing and manipulating
 stack data. Press <span style="font-family:monospace">&lt;up&gt;</span> to enter stack browsing mode; this should
 highlight the last stack element. You can use the up and down arrow keys to
 select different stack elements. The following keys are useful in stack
@@ -536,7 +536,7 @@ and &#X2019;<span style="font-family:monospace">/</span>&#X2019; to indicate div
 <a id="unitsformat"></a>
 using the &#X2019;<span style="font-family:monospace">^</span>&#X2019; character. A contrived example of a valid unit string would be 
 "<span style="font-family:monospace">N*nm^2*kg/s/in^-3*GHz^2.34</span>".
-</p><p>Orpie supports the standard SI prefix set, 
+</p><p>Pelzl supports the standard SI prefix set, 
 <span style="font-family:monospace">{y, z, a, f, p, n, u, m, c, d, da, h, k, M, G, T, P, E, Z, Y}</span>
 (note the use of &#X2019;<span style="font-family:monospace">u</span>&#X2019; for micro-). These prefixes may be applied
 to any of the following exhaustive sets of units:</p><div class="center">
@@ -639,7 +639,7 @@ ill-defined under many operations.</p><div class="center">
 </table>
 </div><p>
 Note: Although the lumen is defined by
-<span style="font-family:monospace">1_lm = 1_cd * sr</span>, Orpie drops the steridian because it is
+<span style="font-family:monospace">1_lm = 1_cd * sr</span>, Pelzl drops the steridian because it is
 a dimensionless unit and therefore is of questionable use to a calculator.</p><div class="center">
 <table border=1  style="border-spacing:0;" class="cellpadding1"><tr><td style="text-align:right;border:solid 1px;white-space:nowrap" > String</td><td style="text-align:left;border:solid 1px;white-space:nowrap" >Volume Unit </td></tr>
 <tr><td style="text-align:right;border:solid 1px;white-space:nowrap" > <span style="font-family:monospace">ozfl</span></td><td style="text-align:left;border:solid 1px;white-space:nowrap" >fluid ounce (US) </td></tr>
@@ -649,23 +649,23 @@ a dimensionless unit and therefore is of questionable use to a calculator.</p><d
 <tr><td style="text-align:right;border:solid 1px;white-space:nowrap" > <span style="font-family:monospace">gal</span></td><td style="text-align:left;border:solid 1px;white-space:nowrap" >gallon (US) </td></tr>
 <tr><td style="text-align:right;border:solid 1px;white-space:nowrap" > <span style="font-family:monospace">L</span></td><td style="text-align:left;border:solid 1px;white-space:nowrap" >liter </td></tr>
 </table>
-</div><p>All units are defined in the Orpie run-configuration file; consult
+</div><p>All units are defined in the Pelzl run-configuration file; consult
 Section <a href="#advanced">4</a> 
 if you wish to define your own units or change the existing definitions.</p>
 <!--TOC section id="sec21" Advanced Configuration-->
 <h2 id="sec21" class="section">4&#XA0;&#XA0;Advanced Configuration</h2><!--SEC END --><p>
 <a id="advanced"></a>
-Orpie reads a run-configuration textfile (generally <span style="font-family:monospace">/etc/orpierc</span> or
-<span style="font-family:monospace">/usr/local/etc/orpierc</span>) to determine key and command bindings. You can
-create a personalized configuration file in <span style="font-family:monospace">$HOME/.orpierc</span>, and select
+Pelzl reads a run-configuration textfile (generally <span style="font-family:monospace">/etc/pelzlrc</span> or
+<span style="font-family:monospace">/usr/local/etc/pelzlrc</span>) to determine key and command bindings. You can
+create a personalized configuration file in <span style="font-family:monospace">$HOME/.pelzlrc</span>, and select
 bindings that match your usage patterns. The recommended procedure is to &#X201C;include&#X201D;
-the <span style="font-family:monospace">orpierc</span> file provided with Orpie 
+the <span style="font-family:monospace">pelzlrc</span> file provided with Pelzl 
 (see Section <a href="#include">4.1.1</a>), 
 and add or remove settings as desired.</p>
-<!--TOC subsection id="sec22" <span style="font-family:monospace">orpierc</span> Syntax-->
-<h3 id="sec22" class="subsection">4.1&#XA0;&#XA0;<span style="font-family:monospace">orpierc</span> Syntax</h3><!--SEC END --><p>
-You may notice that the <span style="font-family:monospace">orpierc</span> syntax is similar to the syntax used in
-the configuration file for the Mutt email client (muttrc).</p><p>Within the <span style="font-family:monospace">orpierc</span> file, strings should be enclosed in double quotes (<span style="font-family:monospace">"</span>).
+<!--TOC subsection id="sec22" <span style="font-family:monospace">pelzlrc</span> Syntax-->
+<h3 id="sec22" class="subsection">4.1&#XA0;&#XA0;<span style="font-family:monospace">pelzlrc</span> Syntax</h3><!--SEC END --><p>
+You may notice that the <span style="font-family:monospace">pelzlrc</span> syntax is similar to the syntax used in
+the configuration file for the Mutt email client (muttrc).</p><p>Within the <span style="font-family:monospace">pelzlrc</span> file, strings should be enclosed in double quotes (<span style="font-family:monospace">"</span>).
 A double quote character inside a string may be represented by 
 \<span style="font-family:monospace">"</span> .
 The backslash character must be represented by doubling it 
@@ -677,9 +677,9 @@ The backslash character must be represented by doubling it
 Syntax: <span style="font-family:monospace">include </span><span style="font-family:monospace"><em>filename_string</em></span> <br>
 <br>
 This syntax can be used to include one run-configuration file within another.
-This command could be used to load the default <span style="font-family:monospace">orpierc</span> file (probably
-found in <span style="font-family:monospace">/etc/orpierc</span>) within your personalized rcfile,
-<span style="font-family:monospace">~/.orpierc</span>. The filename string should be enclosed in quotes.</p>
+This command could be used to load the default <span style="font-family:monospace">pelzlrc</span> file (probably
+found in <span style="font-family:monospace">/etc/pelzlrc</span>) within your personalized rcfile,
+<span style="font-family:monospace">~/.pelzlrc</span>. The filename string should be enclosed in quotes.</p>
 <!--TOC subsubsection id="sec24" Setting Configuration Variables-->
 <h4 id="sec24" class="subsubsection">4.1.2&#XA0;&#XA0;Setting Configuration Variables</h4><!--SEC END --><p>
 <a id="setvar"></a>
@@ -721,12 +721,12 @@ representations, so the following strings may be used to represent them:
 </li><li class="li-itemize"><span style="font-family:monospace">"&lt;f1&gt;"</span> to <span style="font-family:monospace">"&lt;f12&gt;"</span>
 </li></ul><p>
 Due to differences between various terminal emulators, this key identifier syntax may
-not be adequate to describe every keypress. As a workaround, Orpie will also accept key
+not be adequate to describe every keypress. As a workaround, Pelzl will also accept key
 identifiers in octal notation. As an example, you could use 
 \<span style="font-family:monospace">024</span> 
-(do <em>not</em> enclose it in quotes) to represent Ctrl-T.</p><p>Orpie includes a secondary executable, <span style="font-family:monospace">orpie-curses-keys</span>, that prints out
+(do <em>not</em> enclose it in quotes) to represent Ctrl-T.</p><p>Pelzl includes a secondary executable, <span style="font-family:monospace">pelzl-curses-keys</span>, that prints out
 the key identifiers associated with keypresses. You may find it useful when customizing
-<span style="font-family:monospace">orpierc</span>.</p><p>Multiple keys may be bound to the same operation, if desired.</p>
+<span style="font-family:monospace">pelzlrc</span>.</p><p>Multiple keys may be bound to the same operation, if desired.</p>
 <!--TOC subsubsection id="sec26" Removing Key Bindings-->
 <h4 id="sec26" class="subsubsection">4.1.4&#XA0;&#XA0;Removing Key Bindings</h4><!--SEC END --><p>
 <a id="unbindings"></a>
@@ -747,7 +747,7 @@ should be defined using the syntax described in the previous section.</p>
 <a id="autobindings"></a>
 Syntax: <span style="font-family:monospace">autobind </span><span style="font-family:monospace"><em>key_identifier</em></span> <br>
 <br>
-In order to make repetitive calculations more pleasant, Orpie offers an automatic key
+In order to make repetitive calculations more pleasant, Pelzl offers an automatic key
 binding feature. When a function or command is executed using its abbreviation, 
 one of the keys selected by the <span style="font-family:monospace">autobind</span> syntax will be 
 automatically bound to that operation (unless the operation has already been bound 
@@ -758,11 +758,11 @@ to a key). The current set of autobindings can be viewed in the help panel by ex
 <a id="abbreviations"></a>
 Syntax: <span style="font-family:monospace">abbrev </span><span style="font-family:monospace"><em>operation_abbreviation operation</em></span> <br>
 <br>
-You can use this syntax to set the abbreviations used within Orpie to represent the 
+You can use this syntax to set the abbreviations used within Pelzl to represent the 
 various functions and commands. A list of available operations may be found in 
 Section <a href="#operationslist">4.3</a>.
 The operation abbreviations should be quoted strings, for example <span style="font-family:monospace">"sin"</span>
-or <span style="font-family:monospace">"log"</span>.</p><p>Orpie performs autocompletion on these abbreviations, allowing you to type
+or <span style="font-family:monospace">"log"</span>.</p><p>Pelzl performs autocompletion on these abbreviations, allowing you to type
 usually just a few letters in order to select the desired command. The order of the
 autocompletion matches will be the same as the order in which the abbreviations are
 registered by the rcfile&#X2013;so you may wish to place the more commonly used operation
@@ -785,12 +785,12 @@ The syntax for defining a keypress is the same as that defined in
 Section <a href="#bindings">4.1.3</a>. 
 The macro string should be a list of whitespace-separated keypresses, e.g.
 <span style="font-family:monospace">"2 &lt;return&gt; 2 +"</span> (including quotes).</p><p>This macro syntax provides a way to create small programs; by way of example,
-the default orpierc file includes macros for the base 2 logarithm and the
+the default pelzlrc file includes macros for the base 2 logarithm and the
 binary entropy function (bound to <span style="font-family:monospace">L</span> and <span style="font-family:monospace">H</span>, respectively),
 as well as &#X201C;register&#X201D; variable shortcuts (<span style="font-family:monospace">&lt;f1&gt;</span> to <span style="font-family:monospace">&lt;f12&gt;</span>).</p><p>Macros may call other macros recursively. However, take care that a macro does
-not call <em>itself</em> recursively; Orpie will not trap the infinite loop.</p><p>Note that operation abbreviations may be accessed within macros. For example,
+not call <em>itself</em> recursively; Pelzl will not trap the infinite loop.</p><p>Note that operation abbreviations may be accessed within macros. For example,
 <span style="font-family:monospace">macro "A" "&#X2019; a b o u t &lt;return&gt;"</span> would bind <span style="font-family:monospace">A</span> to display
-the &#X201C;about Orpie&#X201D; screen.</p>
+the &#X201C;about Pelzl&#X201D; screen.</p>
 <!--TOC subsubsection id="sec31" Creating Units-->
 <h4 id="sec31" class="subsubsection">4.1.9&#XA0;&#XA0;Creating Units</h4><!--SEC END --><p>
 <a id="units"></a>
@@ -827,10 +827,10 @@ All units used in the constant definition must already have been defined.</p>
 The following configuration variables may be set as described in Section <a href="#setvar">4.1.2</a>:
 </p><ul class="itemize"><li class="li-itemize">
 <span style="font-family:monospace">datadir</span> <br>
- This variable should be set to the full path of the Orpie data directory, 
+ This variable should be set to the full path of the Pelzl data directory, 
 which will contain the calculator state save file, temporary buffers, etc.
 The default directory is
-<span style="font-family:monospace">"~/.orpie/"</span>.
+<span style="font-family:monospace">"~/.pelzl/"</span>.
 </li><li class="li-itemize"><span style="font-family:monospace">editor</span> <br>
  This variable may be set to the fullscreen editor of your choice. The default
 value is <span style="font-family:monospace">"vi"</span>. It is recommended that you choose an editor that offers
@@ -843,7 +843,7 @@ it on the default of <span style="font-family:monospace">"false"</span> to displ
 </li><li class="li-itemize"><span style="font-family:monospace">conserve_memory</span> <br>
  Set this variable to <span style="font-family:monospace">"true"</span> to minimize memory usage, or leave it on
 the default of <span style="font-family:monospace">"false"</span> to improve rendering performance. (By default,
-Orpie caches multiple string representations of all stack elements. Very large
+Pelzl caches multiple string representations of all stack elements. Very large
 integers in particular require significant computation for string representation,
 so caching these strings can make display updates much faster.)
 </li></ul>
@@ -858,7 +858,7 @@ The following is a list of every available operation.</p>
 <h4 id="sec35" class="subsubsection">4.3.1&#XA0;&#XA0;Functions</h4><!--SEC END --><p>
 <a id="functions"></a>
 The following operations are functions&#X2013;that is, they will consume at least one
-argument from the stack. Orpie will generally abort the computation and
+argument from the stack. Pelzl will generally abort the computation and
 provide an informative error message if a function cannot be successfully applied (for
 example, if you try to compute the transpose of something that is not a matrix).</p><p>For the exact integer data type, basic arithmetic operations will yield an exact
 integer result. Division of two exact integers will yield the quotient of
@@ -1055,7 +1055,7 @@ The following operations are referred to as commands; they differ from functions
 they do not take an argument. Many calculator interface settings are implemented as commands.
 </p><ul class="itemize"><li class="li-itemize">
 <span style="font-family:monospace">command_about</span> <br>
- Display a nifty &#X201C;about Orpie&#X201D; credits screen.
+ Display a nifty &#X201C;about Pelzl&#X201D; credits screen.
 </li><li class="li-itemize"><span style="font-family:monospace">command_begin_abbrev</span> <br>
  Begin entry of an operation abbreviation.
 </li><li class="li-itemize"><span style="font-family:monospace">command_begin_browsing</span> <br>
@@ -1102,7 +1102,7 @@ are uniformly distributed.
 </li><li class="li-itemize"><span style="font-family:monospace">command_swap</span> <br>
  Swap stack elements 1 and 2.
 </li><li class="li-itemize"><span style="font-family:monospace">command_quit</span> <br>
- Quit Orpie.
+ Quit Pelzl.
 </li><li class="li-itemize"><span style="font-family:monospace">command_toggle_angle_mode</span> <br>
  Toggle the angle mode between degrees and radians.
 </li><li class="li-itemize"><span style="font-family:monospace">command_toggle_complex_mode</span> <br>
@@ -1123,7 +1123,7 @@ abbreviations are not accessible while entering data. These operations should
 be made available as single keypresses using the <span style="font-family:monospace">bind</span> keyword.
 </p><ul class="itemize"><li class="li-itemize">
 <span style="font-family:monospace">edit_angle</span> <br>
- Begin entering the phase angle of a complex number. (Orpie will
+ Begin entering the phase angle of a complex number. (Pelzl will
 assume the angle is in either degrees or radians, depending on
 the current angle mode.)
 </li><li class="li-itemize"><span style="font-family:monospace">edit_backspace</span> <br>
@@ -1231,14 +1231,14 @@ made accessible by binding it to a single keypress using the <span style="font-f
 </li></ul>
 <!--TOC section id="sec42" Licensing-->
 <h2 id="sec42" class="section">5&#XA0;&#XA0;Licensing</h2><!--SEC END --><p>
-Orpie is Free Software; you can redistribute it and/or modify it under the
+Pelzl is Free Software; you can redistribute it and/or modify it under the
 terms of the GNU General Public License (GPL), Version 3, as published by the
 Free Software Foundation. You should have received a copy of the GPL along
 with this program, in the file &#X201C;LICENSE.md&#X201D;.</p>
 <!--TOC section id="sec43" Contact info-->
 <h2 id="sec43" class="section">6&#XA0;&#XA0;Contact info</h2><!--SEC END --><p>
-Orpie author: Paul Pelzl <span style="font-family:monospace">&lt;pelzlpj@gmail.com&gt;</span> <br>
-Orpie website: <span style="font-family:monospace">https://github.com/pelzlpj/orpie</span> <br>
+Pelzl author: Paul Pelzl <span style="font-family:monospace">&lt;pelzlpj@gmail.com&gt;</span> <br>
+Pelzl website: <span style="font-family:monospace">https://github.com/pelzlpj/pelzl</span> <br>
 </p><!--CUT END -->
 <!--HTMLFOOT-->
 <!--ENDHTML-->
