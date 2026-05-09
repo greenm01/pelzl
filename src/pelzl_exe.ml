@@ -2,7 +2,7 @@ let mode = ref Pelzl_model.Modern
 
 let speclist = [
   ("--modern", Arg.Unit (fun () -> mode := Modern), "Use modern REPL UI");
-  ("--classic", Arg.Unit (fun () -> mode := Classic), "Use classic Orpie UI");
+  ("--orpie", Arg.Unit (fun () -> mode := Classic), "Use classic Orpie UI");
 ]
 
 let usage_msg = "Pelzl -- a modern RPN calculator for the console"

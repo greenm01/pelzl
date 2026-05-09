@@ -8,6 +8,7 @@ let get_mode_str calc =
     (match m.complex with Rect -> "RECT" | Polar -> "POLAR")
 
 let classic_view model =
+  let is_wide = model.width >= 80 in
   let max_stack_lines = max 1 (model.height - 3) in
   let stack_lines =
     List.init max_stack_lines (fun i ->
@@ -24,12 +25,40 @@ let classic_view model =
     | Some msg -> "Error: " ^ msg
     | None -> mode_str
   in
+  let help_text =
+    if model.show_help then
+      "HELP:\n+ add  - sub  * mult  / div\n" ^
+      "i inv  s sqrt  a abs  n neg\n" ^
+      "e exp  l ln    c conj\n" ^
+      "u undo d dup   w swap  \\ drop\n" ^
+      "| clear  r angle  p complex  b base\n" ^
+      "h help  Q quit"
+    else
+      "Press h for help"
+  in
+  let left_pane =
+    Mosaic.box ~display:Mosaic.Display.Block
+      ~size:(Mosaic.size_wh (Mosaic.pct 50) (Mosaic.pct 100))
+      [ Mosaic.text (mode_str ^ "\n\n" ^ help_text) ]
+  in
+  let right_pane =
+    Mosaic.box ~display:Mosaic.Display.Block
+      ~size:(Mosaic.size_wh (if is_wide then Mosaic.pct 50 else Mosaic.pct 100) (Mosaic.pct 100))
+      [ Mosaic.text stack_text ]
+  in
+  let main_area =
+    if is_wide then
+      Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row
+        ~flex_grow:1. [ left_pane; right_pane ]
+    else
+      Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row
+        ~flex_grow:1. [ right_pane ]
+  in
   let bold = Mosaic.Ansi.Style.make ~bold:true () in
   let rev = Mosaic.Ansi.Style.make ~inverse:true () in
   Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Column
     ~size:(Mosaic.size_wh (Mosaic.pct 100) (Mosaic.pct 100))
-    [ Mosaic.box ~display:Mosaic.Display.Block ~flex_grow:1.
-        [ Mosaic.text stack_text ];
+    [ main_area;
       Mosaic.box ~display:Mosaic.Display.Block
         ~size:(Mosaic.size_wh (Mosaic.pct 100) (Mosaic.px 2))
         [ Mosaic.text ~style:bold entry_text;
