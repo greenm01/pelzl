@@ -69,6 +69,28 @@ let test_algebraic_eval () =
   check string "result correct" "7" (String.trim res_str);
   check (option string) "no error" None model'.error_msg
 
+let test_preview_trailing_operator_does_not_use_stack () =
+  let model, _cmd = init Repl () in
+  let calc =
+    { model.calc with stack =
+        Pelzl_engine.stack_push
+          (Pelzl_engine.RpcFloatUnit (1.0, Units.empty_unit))
+          model.calc.Pelzl_engine.stack }
+  in
+  check (option string) "no preview" None (Pelzl_view.preview_for calc "1+")
+
+let test_preview_does_not_mutate_stack () =
+  let model, _cmd = init Repl () in
+  let calc =
+    { model.calc with stack =
+        Pelzl_engine.stack_push
+          (Pelzl_engine.RpcFloatUnit (99.0, Units.empty_unit))
+          model.calc.Pelzl_engine.stack }
+  in
+  check (option string) "preview" (Some "1") (Pelzl_view.preview_for calc "1");
+  check string "stack display unchanged" "99"
+    (String.trim (Pelzl_engine.get_display_line 1 calc))
+
 let key ?(modifier = Input.Key.no_modifier) k =
   Mosaic.Event.Key.of_input (Input.Key.make ~modifier k)
 
@@ -128,6 +150,8 @@ let ui_tests = [
   ("update resize changes dimensions", `Quick, test_resize);
   ("ui mode selection", `Quick, test_ui_modes);
   ("algebraic evaluation", `Quick, test_algebraic_eval);
+  ("preview trailing operator does not use stack", `Quick, test_preview_trailing_operator_does_not_use_stack);
+  ("preview does not mutate stack", `Quick, test_preview_does_not_mutate_stack);
   ("raw Ctrl-Q quits repl even with entry", `Quick, test_raw_ctrl_q_quits_repl_even_with_entry);
   ("uppercase Ctrl-Q quits repl even with entry", `Quick, test_uppercase_ctrl_q_quits_repl_even_with_entry);
   ("raw Ctrl-D quits repl only when empty", `Quick, test_raw_ctrl_d_quits_repl_only_when_entry_empty);

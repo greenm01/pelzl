@@ -185,6 +185,15 @@ let highlight_entry calc s : _ Mosaic.t list =
 
 (* Optional dim ghost preview: show "= <result>" inline if the current
    entry parses, has no assignment, and evaluates without error. *)
+let isolated_preview_calc calc =
+  let open Pelzl_engine in
+  {
+    calc with
+    stack = { data = Array.copy calc.stack.data; len = 0 };
+    variables = Hashtbl.copy (get_variables calc);
+    backup = None;
+  }
+
 let preview_for calc s : string option =
   let trimmed =
     let n = String.length s in
@@ -199,7 +208,7 @@ let preview_for calc s : string option =
     | Error _ -> None
     | Ok (Pelzl_algebraic.S_assign _) -> None
     | Ok stmt ->
-        (match Pelzl_algebraic.eval calc stmt with
+        (match Pelzl_algebraic.eval (isolated_preview_calc calc) stmt with
          | Ok (_, display) -> Some display
          | Error _ -> None)
 
