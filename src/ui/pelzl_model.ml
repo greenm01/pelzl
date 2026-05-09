@@ -1,6 +1,6 @@
 type entry_mode = Normal | Integer | Complex | Matrix | Units
 
-type ui_mode = Modern | Classic
+type ui_mode = Repl | Classic
 
 type model = {
   calc : Pelzl_engine.calc_state;
@@ -9,6 +9,7 @@ type model = {
   ui_mode : ui_mode;
   slogan : string;
   error_msg : string option;
+  history : string list;
   show_help : bool;
   help_page : int;
   width : int;
@@ -121,5 +122,5 @@ let init mode () =
   let calc = Pelzl_engine.empty_state in
   let calc = { calc with modes = { angle = Deg; base = Dec; complex = Rect } } in
   ({ calc; entry = ""; entry_mode = Normal; ui_mode = mode; slogan; error_msg = None;
-     show_help = false; help_page = 0; width = 80; height = 24 },
+     history = []; show_help = false; help_page = 0; width = 80; height = 24 },
    Mosaic.Cmd.none)

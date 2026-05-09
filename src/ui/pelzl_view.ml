@@ -100,7 +100,14 @@ let classic_view model =
     [ ui_content;
       Mosaic.box ~flex_grow:1. [] ]
 
-let modern_view model =
+let repl_view model =
+  let style_cyan = Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Cyan () in
+  let style_magenta = Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Magenta () in
+  let style_green = Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Green ~bold:true () in
+  let style_yellow = Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Yellow ~bold:true () in
+  let style_white = Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.White () in
+
+  (* Left Pane: Stack *)
   let max_stack_lines = max 1 (model.height - 4) in
   let stack_lines =
     List.init max_stack_lines (fun i ->
@@ -109,36 +116,52 @@ let modern_view model =
       if line = "" then "  " else Printf.sprintf "%2d: %s" idx line)
   in
   let stack_text = String.concat "\n" stack_lines in
-  let mode_str = get_mode_str model.calc in
-  let style_cyan = Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Cyan () in
-  let style_magenta = Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Magenta () in
-  let style_green = Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Green ~bold:true () in
-  
-  let left_pane =
-    Mosaic.box ~display:Mosaic.Display.Block
-      ~size:(Mosaic.size_wh (Mosaic.pct 60) (Mosaic.pct 100))
-      [ Mosaic.text ~style:style_cyan stack_text ]
-  in
-  let right_pane =
+  let stack_pane =
     Mosaic.box ~display:Mosaic.Display.Block
       ~size:(Mosaic.size_wh (Mosaic.pct 40) (Mosaic.pct 100))
-      [ Mosaic.text ~style:style_magenta "COMMANDS\n--------\n+ - * / ^\ns l e i c\nu d w \\ |\nh help  Q quit" ]
+      [ Mosaic.text ~style:style_white "STACK\n-----\n";
+        Mosaic.text ~style:style_cyan stack_text ]
   in
+
+  (* Middle Pane: History/Trace Log *)
+  let history_lines =
+    let len = List.length model.history in
+    let max_lines = model.height - 4 in
+    if len > max_lines then
+      let _, h = List.fold_left (fun (i, acc) x -> if i >= len - max_lines then (i+1, acc @ [x]) else (i+1, acc)) (0, []) model.history in h
+    else model.history
+  in
+  let history_text = String.concat "\n" (List.map (fun s -> " \u{2192} " ^ s) history_lines) in
+  let history_pane =
+    Mosaic.box ~display:Mosaic.Display.Block ~flex_grow:1.
+      [ Mosaic.text ~style:style_white "TRACE LOG\n---------\n";
+        Mosaic.text ~style:style_yellow history_text ]
+  in
+
+  (* Right Pane: Modes and Vars *)
+  let mode_str = get_mode_str model.calc in
+  let info_pane =
+    Mosaic.box ~display:Mosaic.Display.Block
+      ~size:(Mosaic.size_wh (Mosaic.px 20) (Mosaic.pct 100))
+      [ Mosaic.text ~style:style_white "INFO\n----\n";
+        Mosaic.text ~style:style_magenta mode_str;
+        Mosaic.text ~style:style_magenta "\n\nh help\nQ quit" ]
+  in
+
   let entry_line =
     match model.error_msg with
     | Some msg -> Mosaic.text ~style:style_green (" \u{26A0} " ^ msg)
     | None ->
         let cursor_style = Mosaic.Ansi.Style.make ~inverse:true () in
         Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row
-          [ Mosaic.text ~style:style_green (Printf.sprintf "\u{25B6} %s" model.entry);
-            Mosaic.text ~style:cursor_style " ";
-            Mosaic.text " ";
-            Mosaic.text mode_str ]
+          [ Mosaic.text ~style:style_green (Printf.sprintf ">>> %s" model.entry);
+            Mosaic.text ~style:cursor_style " " ]
   in
+
   Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Column
     ~size:(Mosaic.size_wh (Mosaic.pct 100) (Mosaic.pct 100))
     [ Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row
-        ~flex_grow:1. [ left_pane; right_pane ];
+        ~flex_grow:1. [ stack_pane; history_pane; info_pane ];
       Mosaic.box ~display:Mosaic.Display.Block
         ~size:(Mosaic.size_wh (Mosaic.pct 100) (Mosaic.px 2))
         [ entry_line ]
@@ -147,4 +170,4 @@ let modern_view model =
 let view model =
   match model.ui_mode with
   | Classic -> classic_view model
-  | Modern -> modern_view model
+  | Repl -> repl_view model

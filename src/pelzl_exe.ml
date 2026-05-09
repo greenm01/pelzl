@@ -1,7 +1,7 @@
-let mode = ref Pelzl_model.Modern
+let mode = ref Pelzl_model.Repl
 
 let speclist = [
-  ("--modern", Arg.Unit (fun () -> mode := Modern), "Use modern REPL UI");
+  ("--repl", Arg.Unit (fun () -> mode := Repl), "Use modern REPL UI (default)");
   ("--orpie", Arg.Unit (fun () -> mode := Classic), "Use classic Orpie UI");
 ]
 

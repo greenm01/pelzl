@@ -1,39 +1,50 @@
-Pelzl README
-============
+Pelzl
+=====
 
-Pelzl is a Curses-based RPN calculator.
+Pelzl is a terminal calculator designed for precision and speed. It provides a robust algebraic REPL by default, while offering a classic RPN interface for those who prefer the traditional stack.
+
+This project is an evolution of the Orpie calculator and is dedicated to the memory of its original author, https://web.archive.org/web/20230529194200/https://www.bradshawfuneral.com/obituaries/paul-pelzl[Paul Pelzl].
+
+== Features
+
+* **Algebraic REPL**: Evaluate expressions naturally: `(5 + 3) * 2`.
+* **Implicit Multiplication**: Support for concise notation, such as `5sin(30)` or `2x`.
+* **Variable Assignment**: Persist values with simple declarations: `x = 42`.
+* **Mathematical Functions**: Comprehensive support for `sin`, `cos`, `sqrt`, `ln`, and more.
+* **Classic RPN Mode**: Revert to the traditional stack-based workflow with the `--orpie` flag.
+* **Mosaic TUI**: A responsive, colorful interface built on the Mosaic library.
 
 == Installation
+
 === Using OPAM
-The recommended method for installing Pelzl is to use
-https://opam.ocaml.org/[OPAM].  +opam install pelzl+ should get the job done.
 
-=== Without using OPAM
-If you want to install manually, you will need the following OCaml packages installed:
+Install Pelzl directly via https://opam.ocaml.org/[OPAM]:
 
-* OCaml 4.03+
-* dune
-* camlp5
-* ocamlfind
-* curses (registered with ocamlfind)
-* gsl (registered with ocamlfind)
-
-If you have satisfied all the dependencies, then use the Makefile to build:
-
+[source,shell]
 ----
-# optionally set an installation prefix (default is /usr/local)
-$ export PREFIX=/usr
+opam install pelzl
+----
 
-# optionally set a staging directory (useful if you're creating a package)
-$ export DESTDIR=/tmp/pelzl
+=== Manual Installation
 
-# build
-$ make
+To build from source, you will need OCaml (4.03 or newer) and the following packages: `dune`, `mosaic`, `gsl`, `num`, `str`, and `camlp-streams`.
 
-# install build products (use 'sudo' if installing to a root-owned location)
-$ make install
+[source,shell]
+----
+# Build the project
+make
+
+# Install (may require sudo)
+make install
 ----
 
 == Usage
-See the 'doc' subdirectory for more extensive documentation.
 
+Launch the algebraic REPL by running `pelzl`. To use the classic RPN interface, run:
+
+[source,shell]
+----
+pelzl --orpie
+----
+
+Consult the `doc` directory for further details.
