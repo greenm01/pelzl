@@ -1,129 +1,10 @@
 open Pelzl_model
 
-module Algebraic = struct
-  type token =
-    | Num of float
-    | Op of char
-    | LParen
-    | RParen
-    | Var of string
-    | Func of string
-    | Comma
-    | Assign
-
-  let is_digit c = match c with '0'..'9' | '.' -> true | _ -> false
-  let is_alpha c = match c with 'a'..'z' | 'A'..'Z' | '_' -> true | _ -> false
-  let is_alnum c = is_alpha c || (match c with '0'..'9' -> true | _ -> false)
-
-  let tokenize s =
-    let rec aux i acc =
-      if i >= String.length s then List.rev acc
-      else
-        match s.[i] with
-        | ' ' | '\t' -> aux (i + 1) acc
-        | '+' | '-' | '*' | '/' | '%' | '^' as c -> 
-            aux (i + 1) (Op c :: acc)
-        | '(' -> 
-            let acc = match acc with
-              | Num _ :: _ | Var _ :: _ | RParen :: _ -> Op '*' :: acc
-              | _ -> acc
-            in
-            aux (i + 1) (LParen :: acc)
-        | ')' -> aux (i + 1) (RParen :: acc)
-        | ',' -> aux (i + 1) (Comma :: acc)
-        | '=' -> aux (i + 1) (Assign :: acc)
-        | c when is_digit c ->
-            let start = i in
-            let rec parse_num j =
-              if j < String.length s && is_digit s.[j] then parse_num (j + 1) else j
-            in
-            let end_idx = parse_num i in
-            let n = try float_of_string (String.sub s start (end_idx - start)) with _ -> 0.0 in
-            let acc = match acc with
-              | RParen :: _ -> Op '*' :: acc
-              | _ -> acc
-            in
-            aux end_idx (Num n :: acc)
-        | c when is_alpha c ->
-            let start = i in
-            let rec parse_ident j =
-              if j < String.length s && is_alnum s.[j] then parse_ident (j + 1) else j
-            in
-            let end_idx = parse_ident i in
-            let ident = String.sub s start (end_idx - start) in
-            let acc = match acc with
-              | Num _ :: _ | RParen :: _ -> Op '*' :: acc
-              | _ -> acc
-            in
-            let rec skip_ws j = 
-              if j < String.length s && (s.[j] = ' ' || s.[j] = '\t') then skip_ws (j + 1) else j
-            in
-            let next_non_ws = skip_ws end_idx in
-            if next_non_ws < String.length s && s.[next_non_ws] = '(' then
-              aux end_idx (Func ident :: acc)
-            else
-              aux end_idx (Var ident :: acc)
-        | _ -> aux (i + 1) acc
-    in
-    aux 0 []
-
-  let precedence = function
-    | '^' -> 4
-    | '*' | '/' | '%' -> 3
-    | '+' | '-' -> 2
-    | _ -> 0
-
-  let is_left_assoc = function
-    | '^' -> false
-    | _ -> true
-
-  let to_postfix tokens =
-    let rec aux tokens stack output =
-      match tokens with
-      | [] -> 
-          let rec pop_all st acc = match st with
-            | [] -> List.rev acc
-            | (Op _ | Func _) as t :: rest -> pop_all rest (t :: acc)
-            | _ :: rest -> pop_all rest acc
-          in pop_all stack output
-      | Num n :: rest -> aux rest stack (Num n :: output)
-      | Var v :: rest -> aux rest stack (Var v :: output)
-      | Func f :: rest -> aux rest (Func f :: stack) output
-      | LParen :: rest -> aux rest (LParen :: stack) output
-      | Comma :: rest ->
-          let rec pop_until_lparen st acc = match st with
-            | LParen :: _ -> (st, acc)
-            | t :: rest_st -> pop_until_lparen rest_st (t :: acc)
-            | [] -> ([], acc)
-          in
-          let new_stack, new_output = pop_until_lparen stack output in
-          aux rest new_stack new_output
-      | RParen :: rest ->
-          let rec pop_until_lparen st acc = match st with
-            | LParen :: rest_st -> 
-                (match rest_st with
-                 | Func f :: rest_st2 -> (rest_st2, Func f :: acc)
-                 | _ -> (rest_st, acc))
-            | t :: rest_st -> pop_until_lparen rest_st (t :: acc)
-            | [] -> ([], acc)
-          in
-          let new_stack, new_output = pop_until_lparen stack output in
-          aux rest new_stack new_output
-      | Op o1 :: rest ->
-          let rec pop_higher st acc = match st with
-            | Op o2 :: rest_st ->
-                let p1, p2 = precedence o1, precedence o2 in
-                if (is_left_assoc o1 && p1 <= p2) || (not (is_left_assoc o1) && p1 < p2) then
-                  pop_higher rest_st (Op o2 :: acc)
-                else (st, acc)
-            | _ -> (st, acc)
-          in
-          let new_stack, new_output = pop_higher stack output in
-          aux rest (Op o1 :: new_stack) new_output
-      | Assign :: rest -> aux rest stack (Assign :: output)
-    in
-    aux tokens [] []
-end
+(* -------------------------------------------------------------------- *)
+(* Helpers carried over from the legacy RPN/Classic implementation.     *)
+(* The algebraic parser previously embedded here has moved to           *)
+(* Pelzl_core.Pelzl_algebraic.                                          *)
+(* -------------------------------------------------------------------- *)
 
 let parse_entry s =
   let len = String.length s in
@@ -140,17 +21,24 @@ let parse_entry s =
       try Pelzl_engine.RpcFloatUnit (float_of_string s, Units.empty_unit)
       with Failure _ -> Pelzl_engine.RpcVariable s
 
+(* Classic-mode trace log. Repl mode never uses this. *)
 let add_history line model =
-  if model.ui_mode = Repl then
+  if model.ui_mode = Classic then
     let history = model.history @ [line] in
     let len = List.length history in
-    let history = if len > 200 then 
-      let _, h = List.fold_left (fun (i, acc) x -> if i >= len - 200 then (i+1, acc @ [x]) else (i+1, acc)) (0, []) history in h
-      else history 
+    let history =
+      if len > 200 then
+        let _, h =
+          List.fold_left
+            (fun (i, acc) x ->
+              if i >= len - 200 then (i + 1, acc @ [x]) else (i + 1, acc))
+            (0, []) history
+        in
+        h
+      else history
     in
     { model with history }
-  else
-    model
+  else model
 
 let string_of_function = function
   | Operations.Add -> "+" | Sub -> "-" | Mult -> "*" | Div -> "/"
@@ -177,7 +65,7 @@ let push_entry model =
     let entry = model.entry in
     let value = parse_entry entry in
     let new_calc = { model.calc with stack = Pelzl_engine.stack_push value model.calc.stack } in
-    let model = { model with entry = ""; calc = new_calc } in
+    let model = { model with entry = ""; cursor = 0; calc = new_calc } in
     add_history (Printf.sprintf "Push %s" entry) model
 
 let exec_function model op =
@@ -305,94 +193,179 @@ let exec_command model op =
 let exec_edit model op =
   match op with
   | Operations.Backspace ->
-      let entry = if String.length model.entry > 0 then String.sub model.entry 0 (String.length model.entry - 1) else "" in
-      { model with entry }
+      let entry =
+        if String.length model.entry > 0 then
+          String.sub model.entry 0 (String.length model.entry - 1)
+        else ""
+      in
+      { model with entry; cursor = String.length entry }
   | Operations.Enter -> push_entry model
   | Operations.Minus ->
       let entry =
         if String.length model.entry > 0 && model.entry.[0] = '-' then
           String.sub model.entry 1 (String.length model.entry - 1)
-        else
-          "-" ^ model.entry
+        else "-" ^ model.entry
       in
-      { model with entry }
-  | Operations.SciNotBase -> { model with entry = model.entry ^ "e" }
+      { model with entry; cursor = String.length entry }
+  | Operations.SciNotBase ->
+      let entry = model.entry ^ "e" in
+      { model with entry; cursor = String.length entry }
   | Operations.BeginInteger -> { model with entry_mode = Integer }
   | Operations.BeginComplex -> { model with entry_mode = Complex }
   | Operations.BeginMatrix -> { model with entry_mode = Matrix }
-  | Operations.Separator -> { model with entry = model.entry ^ "," }
-  | Operations.Angle -> { model with entry = model.entry ^ "<" }
-  | Operations.BeginUnits -> { model with entry = model.entry ^ "_" }
+  | Operations.Separator ->
+      let entry = model.entry ^ "," in
+      { model with entry; cursor = String.length entry }
+  | Operations.Angle ->
+      let entry = model.entry ^ "<" in
+      { model with entry; cursor = String.length entry }
+  | Operations.BeginUnits ->
+      let entry = model.entry ^ "_" in
+      { model with entry; cursor = String.length entry }
   | Operations.Digit -> model
 
-let eval_algebraic model =
-  let open Pelzl_engine in
-  if model.entry = "" then { model with error_msg = None }
-  else
-    let original_entry = model.entry in
-    try
-      let tokens = Algebraic.tokenize original_entry in
-      let var_name, expr_tokens = match tokens with
-        | Algebraic.Var v :: Assign :: rest -> (Some v, rest)
-        | _ -> (None, tokens)
-      in
-      let rpn = Algebraic.to_postfix expr_tokens in
-      let rec eval tokens calc =
-        match tokens with
-        | [] -> calc
-        | t :: rest ->
-            let new_calc = match t with
-              | Algebraic.Num n -> 
-                  { calc with stack = stack_push (RpcFloatUnit (n, Units.empty_unit)) calc.stack }
-              | Algebraic.Var v ->
-                  let value = try Hashtbl.find calc.variables v with Not_found -> RpcFloatUnit (0., Units.empty_unit) in
-                  { calc with stack = stack_push value calc.stack }
-              | Algebraic.Op c ->
-                  (match c with
-                   | '+' -> calc_add calc
-                   | '-' -> calc_sub calc
-                   | '*' -> calc_mult calc
-                   | '/' -> calc_div calc
-                   | '%' -> calc_mod calc
-                   | '^' -> calc_pow calc
-                   | _ -> calc)
-              | Algebraic.Func f ->
-                  (match String.lowercase_ascii f with
-                   | "sin" -> calc_sin calc
-                   | "cos" -> calc_cos calc
-                   | "tan" -> calc_tan calc
-                   | "asin" -> calc_asin calc
-                   | "acos" -> calc_acos calc
-                   | "atan" -> calc_atan calc
-                   | "sqrt" -> calc_sqrt calc
-                   | "ln" -> calc_ln calc
-                   | "log" -> calc_log10 calc
-                   | "abs" -> calc_abs calc
-                   | "exp" -> calc_exp calc
-                   | "ceil" -> calc_ceiling calc
-                   | "floor" -> calc_floor calc
-                   | _ -> calc)
-              | _ -> calc
-            in
-            eval rest new_calc
-      in
-      let final_calc = eval rpn model.calc in
-      let final_calc = match var_name with
-        | Some v ->
-            if stack_length final_calc.stack > 0 then
-              let top, _ = stack_pop final_calc.stack in
-              Hashtbl.replace final_calc.variables v top;
-              final_calc
-            else final_calc
-        | None -> final_calc
-      in
-      let res_str = get_display_line 1 final_calc in
-      let model' = { model with calc = final_calc; entry = ""; error_msg = None } in
-      let model'' = add_history (Printf.sprintf "> %s" original_entry) model' in
-      add_history (Printf.sprintf "Result: %s" res_str) model''
-    with _ -> { model with error_msg = Some "Invalid expression" }
+(* -------------------------------------------------------------------- *)
+(* Repl-mode evaluation: parse + eval through Pelzl_algebraic, then emit *)
+(* a static_commit so the input/result line lands in scrollback above   *)
+(* the live prompt. Errors are shown transiently in the live region.    *)
+(* -------------------------------------------------------------------- *)
 
-let rec update msg model =
+let trim s =
+  let n = String.length s in
+  let i = ref 0 in
+  while !i < n && (s.[!i] = ' ' || s.[!i] = '\t') do incr i done;
+  let j = ref (n - 1) in
+  while !j >= !i && (s.[!j] = ' ' || s.[!j] = '\t') do decr j done;
+  if !j < !i then "" else String.sub s !i (!j - !i + 1)
+
+(* Meta-command output is committed as a Repl_msg block. *)
+let meta_help_text =
+  String.concat "\n" [
+    "  arithmetic : + - * / % ^                     ";
+    "  functions  : sin cos tan asin acos atan      ";
+    "             : sinh cosh tanh asinh acosh atanh";
+    "             : sqrt sq ln log exp abs ceil floor";
+    "             : gamma lngamma erf erfc fact     ";
+    "  numbers    : 1.5e3, 0xff implicit via 0ffh   ";
+    "             : 101b 17o 42d ffh                ";
+    "  variables  : name = expr                     ";
+    "  commands   : :vars :purge NAME :help :quit   ";
+    "  exit       : :quit, Ctrl-D, or Ctrl-Q        ";
+  ]
+
+let format_vars calc =
+  let h = Pelzl_engine.get_variables calc in
+  if Hashtbl.length h = 0 then "  (no variables defined)"
+  else
+    let names = Hashtbl.fold (fun k _ acc -> k :: acc) h [] in
+    let names = List.sort compare names in
+    String.concat "\n"
+      (List.map
+         (fun n ->
+           let v = Hashtbl.find h n in
+           let tmp =
+             { calc with Pelzl_engine.stack =
+                 Pelzl_engine.stack_push v calc.Pelzl_engine.stack }
+           in
+           Printf.sprintf "  %s = %s" n
+             (Pelzl_engine.get_display_line 1 tmp))
+         names)
+
+(* Returns (model, optional message to commit) *)
+let handle_meta model raw =
+  let s = trim raw in
+  let parts =
+    String.split_on_char ' ' s
+    |> List.filter (fun x -> x <> "")
+  in
+  match parts with
+  | [":quit"] | [":q"] | [":exit"] ->
+      `Quit
+  | [":help"] | [":h"] | ["?"] ->
+      `Commit (model, Repl_msg meta_help_text)
+  | [":vars"] | [":v"] ->
+      `Commit (model, Repl_msg (format_vars model.calc))
+  | [":purge"; name] ->
+      let vars = Pelzl_engine.get_variables model.calc in
+      if Hashtbl.mem vars name then begin
+        Hashtbl.remove vars name;
+        `Commit (model, Repl_msg (Printf.sprintf "  purged %s" name))
+      end else
+        `Commit (model, Repl_msg (Printf.sprintf "  no such variable: %s" name))
+  | _ ->
+      `Commit (model, Repl_msg (Printf.sprintf "  unknown command: %s" s))
+
+let eval_algebraic model =
+  let entry = model.entry in
+  let trimmed = trim entry in
+  if trimmed = "" then
+    ({ model with entry = ""; cursor = 0; error_msg = None;
+                  pending_commit = None }, false)
+  else if String.length trimmed > 0 && trimmed.[0] = ':' then
+    match handle_meta model trimmed with
+    | `Quit -> ({ model with pending_commit = None }, true)
+    | `Commit (m, rec_) ->
+        ({ m with entry = ""; cursor = 0; error_msg = None;
+                  pending_commit = Some rec_ }, false)
+  else
+    match Pelzl_algebraic.run model.calc trimmed with
+    | Ok (new_calc, display) ->
+        let rec_ = Repl_ok { input = trimmed; result = display } in
+        ({ model with calc = new_calc; entry = ""; cursor = 0;
+                      error_msg = None; pending_commit = Some rec_ }, false)
+    | Error e ->
+        let rec_ = Repl_err { input = trimmed; error = Pelzl_algebraic.pp_error e } in
+        ({ model with entry = ""; cursor = 0; error_msg = None;
+                      pending_commit = Some rec_ }, false)
+
+(* -------------------------------------------------------------------- *)
+(* Main update                                                          *)
+(* -------------------------------------------------------------------- *)
+
+(* Build the styled view that gets pushed into terminal scrollback. *)
+let style_prompt =
+  Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Cyan ~bold:true ()
+let style_input =
+  Mosaic.Ansi.Style.make ()
+let style_result =
+  Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Green ()
+let style_arrow =
+  Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Bright_black ()
+let style_err =
+  Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Red ~bold:true ()
+let style_msg =
+  Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Bright_black ()
+
+let render_record (r : repl_record) =
+  let row children =
+    Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row children
+  in
+  match r with
+  | Repl_ok { input; result } ->
+      Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Column [
+        row [ Mosaic.text ~style:style_prompt "> ";
+              Mosaic.text ~style:style_input input ];
+        row [ Mosaic.text ~style:style_arrow "  = ";
+              Mosaic.text ~style:style_result result ];
+      ]
+  | Repl_err { input; error } ->
+      Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Column [
+        row [ Mosaic.text ~style:style_prompt "> ";
+              Mosaic.text ~style:style_input input ];
+        row [ Mosaic.text ~style:style_arrow "  ! ";
+              Mosaic.text ~style:style_err error ];
+      ]
+  | Repl_msg s ->
+      Mosaic.text ~style:style_msg s
+
+let take_pending model =
+  match model.pending_commit with
+  | None -> (model, Mosaic.Cmd.none)
+  | Some r ->
+      let cmd = Mosaic.Cmd.static_commit (render_record r) in
+      ({ model with pending_commit = None }, cmd)
+
+let update msg model =
   match msg with
   | Key_input ev ->
       let data = Mosaic.Event.Key.data ev in
@@ -421,20 +394,38 @@ let rec update msg model =
       in
       let is_enter = (data.key = Enter) in
       if model.ui_mode = Repl then begin
+        (* Sober REPL: minimal key handling. No RPN keymap. *)
         match data.key with
-        | Enter -> update Enter model
-        | Backspace -> update Backspace model
-        | Char c when not data.modifier.ctrl && not data.modifier.alt ->
-            let s = model.entry ^ String.make 1 (Uchar.to_char c) in
-            { model with entry = s; error_msg = None }, Mosaic.Cmd.none
-        | _ ->
-            let op_opt =
-              (try Some (Operations.Command (Rcfile.command_of_key key_binding)) with Not_found -> None)
+        | Enter ->
+            let model', should_quit = eval_algebraic model in
+            let model', cmd = take_pending model' in
+            if should_quit then model', Mosaic.Cmd.quit
+            else model', cmd
+        | Backspace ->
+            let entry =
+              if String.length model.entry > 0 then
+                String.sub model.entry 0 (String.length model.entry - 1)
+              else ""
             in
-            (match op_opt with
-             | Some (Operations.Command c) when c = Operations.Quit -> model, Mosaic.Cmd.quit
-             | Some (Operations.Command c) when c = Operations.CycleHelp -> { model with show_help = not model.show_help }, Mosaic.Cmd.none
-             | _ -> { model with error_msg = None }, Mosaic.Cmd.none)
+            { model with entry; cursor = String.length entry;
+                         error_msg = None }, Mosaic.Cmd.none
+        (* Ctrl-D: exit on empty entry, otherwise ignored *)
+        | Char c when data.modifier.ctrl
+                      && Uchar.equal c (Uchar.of_char 'd')
+                      && model.entry = "" ->
+            model, Mosaic.Cmd.quit
+        (* Ctrl-U: clear entry *)
+        | Char c when data.modifier.ctrl
+                      && Uchar.equal c (Uchar.of_char 'u') ->
+            { model with entry = ""; cursor = 0;
+                         error_msg = None }, Mosaic.Cmd.none
+        | Char c when not data.modifier.ctrl && not data.modifier.alt
+                      && Uchar.is_char c ->
+            let s = model.entry ^ String.make 1 (Uchar.to_char c) in
+            { model with entry = s; cursor = String.length s;
+                         error_msg = None }, Mosaic.Cmd.none
+        | _ ->
+            model, Mosaic.Cmd.none
       end else if model.entry <> "" && is_enter then
         push_entry model, Mosaic.Cmd.none
       else
@@ -457,14 +448,22 @@ let rec update msg model =
             (match data.key with
             | Char c when not data.modifier.ctrl && not data.modifier.alt ->
                 let s = model.entry ^ String.make 1 (Uchar.to_char c) in
-                { model with entry = s; error_msg = None }, Mosaic.Cmd.none
+                { model with entry = s; cursor = String.length s;
+                             error_msg = None }, Mosaic.Cmd.none
             | _ -> { model with error_msg = None }, Mosaic.Cmd.none))
   | Backspace ->
-      let entry = if String.length model.entry > 0 then String.sub model.entry 0 (String.length model.entry - 1) else "" in
-      { model with entry; error_msg = None }, Mosaic.Cmd.none
+      let entry =
+        if String.length model.entry > 0 then
+          String.sub model.entry 0 (String.length model.entry - 1)
+        else ""
+      in
+      { model with entry; cursor = String.length entry;
+                   error_msg = None }, Mosaic.Cmd.none
   | Enter ->
       if model.ui_mode = Repl then
-        eval_algebraic model, Mosaic.Cmd.none
+        let model', should_quit = eval_algebraic model in
+        let model', cmd = take_pending model' in
+        if should_quit then model', Mosaic.Cmd.quit else model', cmd
       else
         { (push_entry model) with error_msg = None }, Mosaic.Cmd.none
   | Clear_error ->

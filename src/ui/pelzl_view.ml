@@ -7,12 +7,15 @@ let get_mode_str calc =
     (match m.base with Bin -> "BIN" | Oct -> "OCT" | Hex -> "HEX" | Dec -> "DEC")
     (match m.complex with Rect -> "RECT" | Polar -> "POLAR")
 
+(* -------------------------------------------------------------------- *)
+(* Classic (Orpie) view -- unchanged behaviour.                         *)
+(* -------------------------------------------------------------------- *)
+
 let classic_view model =
   let view_width = 80 in
   let max_stack_lines = max 1 (model.height - 2) in
   let left_width = 38 in
   let stack_width = view_width - left_width in
-  
   let stack_lines =
     List.init max_stack_lines (fun i ->
       let idx = max_stack_lines - i in
@@ -20,15 +23,13 @@ let classic_view model =
       let num_str = Printf.sprintf "%2d:" idx in
       let bar = "| " in
       let prefix = bar ^ num_str in
-      if line = "" then
-        prefix
+      if line = "" then prefix
       else
         let pad_len = stack_width - String.length prefix - String.length line in
         let pad = if pad_len > 0 then String.make pad_len ' ' else " " in
         prefix ^ pad ^ line)
   in
   let stack_text = String.concat "\n" stack_lines in
-  
   let m = Pelzl_engine.get_modes model.calc in
   let angle_str = match m.angle with Rad -> "RAD" | Deg -> "DEG" in
   let base_str = match m.base with Bin -> "BIN" | Oct -> "OCT" | Hex -> "HEX" | Dec -> "DEC" in
@@ -100,72 +101,147 @@ let classic_view model =
     [ ui_content;
       Mosaic.box ~flex_grow:1. [] ]
 
+(* -------------------------------------------------------------------- *)
+(* Repl (default) view: a single sober prompt line with live syntax     *)
+(* highlighting. Renders inline above terminal scrollback (Mosaic       *)
+(* `Primary mode); committed input/result records are pushed into the   *)
+(* scrollback area via Cmd.static_commit from the update function.      *)
+(* -------------------------------------------------------------------- *)
+
+(* Highlight styles. *)
+let style_prompt =
+  Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Cyan ~bold:true ()
+let style_number =
+  Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Yellow ()
+let style_op =
+  Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Magenta ()
+let style_func =
+  Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Cyan ()
+let style_ident_known =
+  Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Green ()
+let style_ident_unknown =
+  Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.White ()
+let style_assign =
+  Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Magenta ~bold:true ()
+let style_paren =
+  Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Bright_black ()
+let style_err =
+  Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Red ~underline:true ()
+let style_meta =
+  Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Bright_blue ()
+let style_dim =
+  Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Bright_black ()
+let style_cursor =
+  Mosaic.Ansi.Style.make ~inverse:true ()
+
+(* Tokenize the current entry and produce a list of styled spans
+   covering the entire string. Whitespace and inter-token gaps are
+   emitted as plain text. *)
+let highlight_entry calc s : _ Mosaic.t list =
+  if s = "" then []
+  else if String.length s > 0 && s.[0] = ':' then
+    [ Mosaic.text ~style:style_meta s ]
+  else
+    let toks = Pelzl_algebraic.tokenize s in
+    let vars = Pelzl_engine.get_variables calc in
+    let n = String.length s in
+    let rec loop pos toks acc =
+      match toks with
+      | [] ->
+          let acc =
+            if pos < n then
+              Mosaic.text (String.sub s pos (n - pos)) :: acc
+            else acc
+          in
+          List.rev acc
+      | t :: rest ->
+          let { Pelzl_algebraic.start; len } = t.Pelzl_algebraic.span in
+          let acc =
+            if pos < start then
+              Mosaic.text (String.sub s pos (start - pos)) :: acc
+            else acc
+          in
+          let text = String.sub s start len in
+          let style =
+            match t.kind with
+            | Pelzl_algebraic.T_num _ | T_int _ -> Some style_number
+            | T_op _ -> Some style_op
+            | T_func _ -> Some style_func
+            | T_ident name ->
+                if Hashtbl.mem vars name then Some style_ident_known
+                else Some style_ident_unknown
+            | T_lparen | T_rparen | T_comma -> Some style_paren
+            | T_assign -> Some style_assign
+            | T_error _ -> Some style_err
+          in
+          let node =
+            match style with
+            | Some st -> Mosaic.text ~style:st text
+            | None -> Mosaic.text text
+          in
+          loop (start + len) rest (node :: acc)
+    in
+    loop 0 toks []
+
+(* Optional dim ghost preview: show "= <result>" inline if the current
+   entry parses, has no assignment, and evaluates without error. *)
+let preview_for calc s : string option =
+  let trimmed =
+    let n = String.length s in
+    let i = ref 0 in
+    while !i < n && (s.[!i] = ' ' || s.[!i] = '\t') do incr i done;
+    if !i >= n then "" else String.sub s !i (n - !i)
+  in
+  if trimmed = "" || (String.length trimmed > 0 && trimmed.[0] = ':')
+  then None
+  else
+    match Pelzl_algebraic.parse trimmed with
+    | Error _ -> None
+    | Ok (Pelzl_algebraic.S_assign _) -> None
+    | Ok stmt ->
+        (match Pelzl_algebraic.eval calc stmt with
+         | Ok (_, display) -> Some display
+         | Error _ -> None)
+
+let banner_seen = ref false
+
 let repl_view model =
-  let style_cyan = Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Cyan () in
-  let style_magenta = Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Magenta () in
-  let style_green = Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Green ~bold:true () in
-  let style_yellow = Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Yellow ~bold:true () in
-  let style_white = Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.White () in
-
-  (* Left Pane: Stack *)
-  let max_stack_lines = max 1 (model.height - 4) in
-  let stack_lines =
-    List.init max_stack_lines (fun i ->
-      let idx = max_stack_lines - i in
-      let line = Pelzl_engine.get_display_line idx model.calc in
-      if line = "" then "  " else Printf.sprintf "%2d: %s" idx line)
+  (* On first render, emit a brief startup banner via static_commit-able
+     view? No — we render it inline as part of the live region the very
+     first time, then expect the user's first Enter to push state above.
+     Simpler: show banner only once below as a 1-line dim hint. *)
+  let banner =
+    if !banner_seen then None
+    else begin
+      banner_seen := true;
+      Some (Mosaic.text ~style:style_dim
+              "pelzl -- ':help' for commands, ':quit' or Ctrl-D to exit")
+    end
   in
-  let stack_text = String.concat "\n" stack_lines in
-  let stack_pane =
-    Mosaic.box ~display:Mosaic.Display.Block
-      ~size:(Mosaic.size_wh (Mosaic.pct 40) (Mosaic.pct 100))
-      [ Mosaic.text ~style:style_white "STACK\n-----\n";
-        Mosaic.text ~style:style_cyan stack_text ]
+  let prompt =
+    Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row (
+      [ Mosaic.text ~style:style_prompt "> " ]
+      @ highlight_entry model.calc model.entry
+      @ [ Mosaic.text ~style:style_cursor " " ])
   in
-
-  (* Middle Pane: History/Trace Log *)
-  let history_lines =
-    let len = List.length model.history in
-    let max_lines = model.height - 4 in
-    if len > max_lines then
-      let _, h = List.fold_left (fun (i, acc) x -> if i >= len - max_lines then (i+1, acc @ [x]) else (i+1, acc)) (0, []) model.history in h
-    else model.history
+  let preview_row =
+    match preview_for model.calc model.entry with
+    | None -> []
+    | Some r ->
+        [ Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row
+            [ Mosaic.text ~style:style_dim "  = ";
+              Mosaic.text ~style:style_dim r ] ]
   in
-  let history_text = String.concat "\n" (List.map (fun s -> " \u{2192} " ^ s) history_lines) in
-  let history_pane =
-    Mosaic.box ~display:Mosaic.Display.Block ~flex_grow:1.
-      [ Mosaic.text ~style:style_white "HISTORY\n-------\n";
-        Mosaic.text ~style:style_yellow history_text ]
-  in
-
-  (* Right Pane: Modes and Vars *)
-  let mode_str = get_mode_str model.calc in
-  let info_pane =
-    Mosaic.box ~display:Mosaic.Display.Block
-      ~size:(Mosaic.size_wh (Mosaic.px 20) (Mosaic.pct 100))
-      [ Mosaic.text ~style:style_white "INFO\n----\n";
-        Mosaic.text ~style:style_magenta mode_str;
-        Mosaic.text ~style:style_magenta "\n\nh help\nQ quit" ]
-  in
-
-  let entry_line =
+  let error_row =
     match model.error_msg with
-    | Some msg -> Mosaic.text ~style:style_green (" \u{26A0} " ^ msg)
-    | None ->
-        let cursor_style = Mosaic.Ansi.Style.make ~inverse:true () in
-        Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row
-          [ Mosaic.text ~style:style_green (Printf.sprintf ">>> %s" model.entry);
-            Mosaic.text ~style:cursor_style " " ]
+    | None -> []
+    | Some msg ->
+        [ Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row
+            [ Mosaic.text ~style:style_err ("  ! " ^ msg) ] ]
   in
-
+  let banner_row = match banner with None -> [] | Some n -> [ n ] in
   Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Column
-    ~size:(Mosaic.size_wh (Mosaic.pct 100) (Mosaic.pct 100))
-    [ Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row
-        ~flex_grow:1. [ stack_pane; history_pane; info_pane ];
-      Mosaic.box ~display:Mosaic.Display.Block
-        ~size:(Mosaic.size_wh (Mosaic.pct 100) (Mosaic.px 2))
-        [ entry_line ]
-    ]
+    (banner_row @ [ prompt ] @ preview_row @ error_row)
 
 let view model =
   match model.ui_mode with

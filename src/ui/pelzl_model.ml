@@ -2,18 +2,28 @@ type entry_mode = Normal | Integer | Complex | Matrix | Units
 
 type ui_mode = Repl | Classic
 
+(* A committed REPL exchange: the input (echoed) and either a result
+   string or an error message. Used only by the inline Repl mode to
+   render scrollback via [Mosaic.Cmd.static_commit]. *)
+type repl_record =
+  | Repl_ok of { input : string; result : string }
+  | Repl_err of { input : string; error : string }
+  | Repl_msg of string
+
 type model = {
   calc : Pelzl_engine.calc_state;
   entry : string;
+  cursor : int;                       (* byte offset within entry *)
   entry_mode : entry_mode;
   ui_mode : ui_mode;
   slogan : string;
-  error_msg : string option;
-  history : string list;
+  error_msg : string option;          (* transient, cleared on next keystroke *)
+  history : string list;              (* used by Classic only *)
   show_help : bool;
   help_page : int;
   width : int;
   height : int;
+  pending_commit : repl_record option; (* one-shot; consumed by view->cmd *)
 }
 
 type msg =
@@ -121,6 +131,7 @@ let init mode () =
   let slogan = all_taglines.(Random.int (Array.length all_taglines)) in
   let calc = Pelzl_engine.empty_state in
   let calc = { calc with modes = { angle = Deg; base = Dec; complex = Rect } } in
-  ({ calc; entry = ""; entry_mode = Normal; ui_mode = mode; slogan; error_msg = None;
-     history = []; show_help = false; help_page = 0; width = 80; height = 24 },
+  ({ calc; entry = ""; cursor = 0; entry_mode = Normal; ui_mode = mode;
+     slogan; error_msg = None; history = []; show_help = false;
+     help_page = 0; width = 80; height = 24; pending_commit = None },
    Mosaic.Cmd.none)

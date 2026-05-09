@@ -7,4 +7,5 @@ let () =
       ("engine", Test_engine.engine_tests);
       ("bindings", Test_bindings.binding_tests);
       ("ui", Test_ui_model.ui_tests);
+      ("algebraic", Test_algebraic.algebraic_tests);
     ]

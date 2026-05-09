@@ -2,4 +2,4 @@
  (name pelzl_exe)
  (public_name pelzl)
  (flags (:standard -w -27-35-52 -thread -alert -deprecated))
- (libraries pelzl_ui pelzl_core mosaic gsl num str threads camlp-streams))
+ (libraries pelzl_ui pelzl_core mosaic matrix gsl num str threads camlp-streams))
