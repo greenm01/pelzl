@@ -7,7 +7,8 @@ let model_repl () =
   m
 
 let with_history hist m =
-  { m with history = hist; history_idx = None; history_save = "" }
+  { m with history = hist; history_idx = None; history_save = "";
+           entry_cursor = String.length m.entry }
 
 (* ------------------------------------------------------------------ *)
 (* trim_ws                                                             *)
@@ -77,24 +78,28 @@ let test_push_history_cap () =
 
 let test_history_nav () =
   let m = with_history ["c"; "b"; "a"] (model_repl ()) in
-  let m = { m with entry = "live" } in
+  let m = { m with entry = "live"; entry_cursor = 2 } in
 
   let m1 = history_prev m in
   check (option int) "idx 0" (Some 0) m1.history_idx;
   check string "entry c" "c" m1.entry;
+  check int "cursor c end" 1 m1.entry_cursor;
   check string "save live" "live" m1.history_save;
 
   let m2 = history_prev m1 in
   check (option int) "idx 1" (Some 1) m2.history_idx;
   check string "entry b" "b" m2.entry;
+  check int "cursor b end" 1 m2.entry_cursor;
 
   let m3 = history_next m2 in
   check (option int) "back to 0" (Some 0) m3.history_idx;
   check string "entry c" "c" m3.entry;
+  check int "cursor c restored end" 1 m3.entry_cursor;
 
   let m4 = history_next m3 in
   check (option int) "back to live" None m4.history_idx;
   check string "restored live" "live" m4.entry;
+  check int "cursor live end" 4 m4.entry_cursor;
   check string "save cleared" "" m4.history_save
 
 let test_history_next_empty () =
@@ -104,7 +109,7 @@ let test_history_next_empty () =
 
 let test_history_prev_bounds () =
   let m = with_history ["a"] (model_repl ()) in
-  let m = { m with entry = "" } in
+  let m = { m with entry = ""; entry_cursor = 0 } in
   let m1 = history_prev m in
   let m2 = history_prev m1 in
   check (option int) "stops at last" (Some 0) m2.history_idx;

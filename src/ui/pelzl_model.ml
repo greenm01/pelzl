@@ -13,6 +13,7 @@ type repl_record =
 type model = {
   calc : Pelzl_engine.calc_state;
   entry : string;
+  entry_cursor : int;
   entry_mode : entry_mode;
   ui_mode : ui_mode;
   slogan : string;
@@ -142,7 +143,7 @@ let init mode () =
     | Repl -> Pelzl_history.load ()
     | Classic -> []
   in
-  ({ calc; entry = ""; entry_mode = Normal; ui_mode = mode;
+  ({ calc; entry = ""; entry_cursor = 0; entry_mode = Normal; ui_mode = mode;
      slogan; error_msg = None; history; history_idx = None;
      history_save = ""; show_help = false; help_page = 0;
      width = 80; height = 24; pending_commit = None },

@@ -6,6 +6,7 @@ let test_init_empty () =
   let model, _cmd = init Repl () in
   check int "stack len" 0 (Pelzl_engine.stack_length model.calc.Pelzl_engine.stack);
   check string "entry" "" model.entry;
+  check int "cursor" 0 model.entry_cursor;
   check bool "show_help" false model.show_help;
   check (option string) "error" None model.error_msg;
   check bool "slogan not empty" true (String.length model.slogan > 0)
@@ -31,9 +32,10 @@ let test_push_entry () =
 
 let test_backspace () =
   let model, _cmd = init Repl () in
-  let model = { model with entry = "123" } in
+  let model = { model with entry = "123"; entry_cursor = 3 } in
   let model', _cmd = update Backspace model in
-  check string "entry" "12" model'.entry
+  check string "entry" "12" model'.entry;
+  check int "cursor" 2 model'.entry_cursor
 
 let test_clear_error () =
   let model, _cmd = init Repl () in
@@ -101,9 +103,41 @@ let ctrl_char ch =
   let modifier = { Input.Key.no_modifier with ctrl = true } in
   key ~modifier (Input.Key.Char (Uchar.of_char ch))
 
+let plain_char ch =
+  key (Input.Key.Char (Uchar.of_char ch))
+
 let cmd_is_quit = function
   | Mosaic.Cmd.Quit -> true
   | _ -> false
+
+let test_repl_cursor_movement_keys () =
+  let model, _cmd = init Repl () in
+  let model = { model with entry = "abcd"; entry_cursor = 2 } in
+  let model, _ = update (Key_input (key Input.Key.Left)) model in
+  check int "left" 1 model.entry_cursor;
+  let model, _ = update (Key_input (key Input.Key.Right)) model in
+  check int "right" 2 model.entry_cursor;
+  let model, _ = update (Key_input (key Input.Key.Home)) model in
+  check int "home" 0 model.entry_cursor;
+  let model, _ = update (Key_input (key Input.Key.End)) model in
+  check int "end" 4 model.entry_cursor
+
+let test_repl_delete_and_middle_insert () =
+  let model, _cmd = init Repl () in
+  let model = { model with entry = "abcd"; entry_cursor = 2 } in
+  let model, _ = update (Key_input (key Input.Key.Delete)) model in
+  check string "delete at cursor" "abd" model.entry;
+  check int "cursor after delete" 2 model.entry_cursor;
+  let model, _ = update (Key_input (plain_char 'X')) model in
+  check string "insert at cursor" "abXd" model.entry;
+  check int "cursor after insert" 3 model.entry_cursor
+
+let test_repl_backspace_middle () =
+  let model, _cmd = init Repl () in
+  let model = { model with entry = "abcd"; entry_cursor = 2 } in
+  let model, _ = update (Key_input (key Input.Key.Backspace)) model in
+  check string "backspace before cursor" "acd" model.entry;
+  check int "cursor after backspace" 1 model.entry_cursor
 
 let test_raw_ctrl_q_quits_repl_even_with_entry () =
   let model, _cmd = init Repl () in
@@ -145,6 +179,9 @@ let ui_tests = [
   ("random slogan initialization", `Quick, test_random_slogan);
   ("update push entry on enter", `Quick, test_push_entry);
   ("update backspace removes char", `Quick, test_backspace);
+  ("repl cursor movement keys", `Quick, test_repl_cursor_movement_keys);
+  ("repl delete and middle insert", `Quick, test_repl_delete_and_middle_insert);
+  ("repl backspace in middle", `Quick, test_repl_backspace_middle);
   ("update clear error", `Quick, test_clear_error);
   ("update toggle help", `Quick, test_toggle_help);
   ("update resize changes dimensions", `Quick, test_resize);

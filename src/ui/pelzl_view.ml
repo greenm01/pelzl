@@ -183,6 +183,20 @@ let highlight_entry calc s : _ Mosaic.t list =
     in
     loop 0 toks []
 
+let highlight_entry_with_cursor calc s cursor =
+  let n = String.length s in
+  let cursor = max 0 (min cursor n) in
+  let before = String.sub s 0 cursor in
+  let before_nodes = highlight_entry calc before in
+  if cursor >= n then
+    before_nodes @ [ Mosaic.text ~style:style_cursor " " ]
+  else
+    let cursor_text = String.sub s cursor 1 in
+    let after = String.sub s (cursor + 1) (n - cursor - 1) in
+    before_nodes
+    @ [ Mosaic.text ~style:style_cursor cursor_text ]
+    @ highlight_entry calc after
+
 (* Optional dim ghost preview: show "= <result>" inline if the current
    entry parses, has no assignment, and evaluates without error. *)
 let isolated_preview_calc calc =
@@ -216,8 +230,7 @@ let repl_view model =
   let prompt =
     Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row (
       [ Mosaic.text ~style:style_prompt "> " ]
-      @ highlight_entry model.calc model.entry
-      @ [ Mosaic.text ~style:style_cursor " " ])
+      @ highlight_entry_with_cursor model.calc model.entry model.entry_cursor)
   in
   let status_row =
     match model.error_msg with

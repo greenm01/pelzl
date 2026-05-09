@@ -21,6 +21,64 @@ let parse_entry s =
       try Pelzl_engine.RpcFloatUnit (float_of_string s, Units.empty_unit)
       with Failure _ -> Pelzl_engine.RpcVariable s
 
+let clamp_cursor entry cursor =
+  max 0 (min cursor (String.length entry))
+
+let with_entry entry model =
+  { model with entry; entry_cursor = String.length entry }
+
+let reset_entry model =
+  { model with entry = ""; entry_cursor = 0 }
+
+let insert_text s model =
+  let cursor = clamp_cursor model.entry model.entry_cursor in
+  let before = String.sub model.entry 0 cursor in
+  let after = String.sub model.entry cursor (String.length model.entry - cursor) in
+  { model with
+    entry = before ^ s ^ after;
+    entry_cursor = cursor + String.length s;
+    history_idx = None;
+    history_save = "";
+    error_msg = None }
+
+let delete_before_cursor model =
+  let cursor = clamp_cursor model.entry model.entry_cursor in
+  if cursor = 0 then { model with error_msg = None }
+  else
+    let before = String.sub model.entry 0 (cursor - 1) in
+    let after = String.sub model.entry cursor (String.length model.entry - cursor) in
+    { model with
+      entry = before ^ after;
+      entry_cursor = cursor - 1;
+      history_idx = None;
+      history_save = "";
+      error_msg = None }
+
+let delete_at_cursor model =
+  let cursor = clamp_cursor model.entry model.entry_cursor in
+  if cursor >= String.length model.entry then { model with error_msg = None }
+  else
+    let before = String.sub model.entry 0 cursor in
+    let after =
+      String.sub model.entry (cursor + 1) (String.length model.entry - cursor - 1)
+    in
+    { model with
+      entry = before ^ after;
+      entry_cursor = cursor;
+      history_idx = None;
+      history_save = "";
+      error_msg = None }
+
+let move_cursor delta model =
+  { model with
+    entry_cursor = clamp_cursor model.entry (model.entry_cursor + delta);
+    error_msg = None }
+
+let cursor_home model = { model with entry_cursor = 0; error_msg = None }
+
+let cursor_end model =
+  { model with entry_cursor = String.length model.entry; error_msg = None }
+
 (* Classic-mode trace log. Repl mode never uses this. *)
 let add_trace line model =
   if model.ui_mode = Classic then
@@ -65,7 +123,7 @@ let push_entry model =
     let entry = model.entry in
     let value = parse_entry entry in
     let new_calc = { model.calc with stack = Pelzl_engine.stack_push value model.calc.stack } in
-    let model = { model with entry = ""; calc = new_calc } in
+    let model = { (reset_entry model) with calc = new_calc } in
     add_trace (Printf.sprintf "Push %s" entry) model
 
 let exec_function model op =
@@ -193,12 +251,7 @@ let exec_command model op =
 let exec_edit model op =
   match op with
   | Operations.Backspace ->
-      let entry =
-        if String.length model.entry > 0 then
-          String.sub model.entry 0 (String.length model.entry - 1)
-        else ""
-      in
-      { model with entry }
+      delete_before_cursor model
   | Operations.Enter -> push_entry model
   | Operations.Minus ->
       let entry =
@@ -206,14 +259,14 @@ let exec_edit model op =
           String.sub model.entry 1 (String.length model.entry - 1)
         else "-" ^ model.entry
       in
-      { model with entry }
-  | Operations.SciNotBase -> { model with entry = model.entry ^ "e" }
+      with_entry entry model
+  | Operations.SciNotBase -> insert_text "e" model
   | Operations.BeginInteger -> { model with entry_mode = Integer }
   | Operations.BeginComplex -> { model with entry_mode = Complex }
   | Operations.BeginMatrix -> { model with entry_mode = Matrix }
-  | Operations.Separator -> { model with entry = model.entry ^ "," }
-  | Operations.Angle -> { model with entry = model.entry ^ "<" }
-  | Operations.BeginUnits -> { model with entry = model.entry ^ "_" }
+  | Operations.Separator -> insert_text "," model
+  | Operations.Angle -> insert_text "<" model
+  | Operations.BeginUnits -> insert_text "_" model
   | Operations.Digit -> model
 
 (* -------------------------------------------------------------------- *)
@@ -316,7 +369,7 @@ let push_history model s =
 let submit_repl model raw =
   let s = trim_ws raw in
   if s = "" then
-    ({ model with entry = ""; history_idx = None;
+    ({ model with entry = ""; entry_cursor = 0; history_idx = None;
                   history_save = ""; error_msg = None;
                   pending_commit = None }, false)
   else
@@ -326,10 +379,10 @@ let submit_repl model raw =
     if String.length s > 0 && s.[0] = ':' then
       match handle_meta model s with
       | `Quit ->
-          ({ model with entry = ""; history_idx = None;
+          ({ model with entry = ""; entry_cursor = 0; history_idx = None;
                         history_save = ""; pending_commit = None }, true)
       | `Commit (m, rec_) ->
-          ({ m with entry = ""; history_idx = None;
+          ({ m with entry = ""; entry_cursor = 0; history_idx = None;
                     history_save = ""; error_msg = None;
                     pending_commit = Some rec_ }, false)
     else
@@ -337,12 +390,12 @@ let submit_repl model raw =
       | Ok (new_calc, display) ->
           let new_calc = bind_ans new_calc in
           let rec_ = Repl_ok { input = s; result = display } in
-          ({ model with calc = new_calc; entry = ""; history_idx = None;
+          ({ model with calc = new_calc; entry = ""; entry_cursor = 0; history_idx = None;
                         history_save = ""; error_msg = None;
                         pending_commit = Some rec_ }, false)
       | Error e ->
           let rec_ = Repl_err { input = s; error = Pelzl_algebraic.pp_error e } in
-          ({ model with entry = ""; history_idx = None;
+          ({ model with entry = ""; entry_cursor = 0; history_idx = None;
                         history_save = ""; error_msg = None;
                         pending_commit = Some rec_ }, false)
 
@@ -357,10 +410,13 @@ let history_prev model =
           history_save = model.entry;
           history_idx = Some 0;
           entry = List.nth model.history 0;
+          entry_cursor = String.length (List.nth model.history 0);
           error_msg = None }
     | Some k when k + 1 < len ->
+        let entry = List.nth model.history (k + 1) in
         { model with history_idx = Some (k + 1);
-                     entry = List.nth model.history (k + 1);
+                     entry;
+                     entry_cursor = String.length entry;
                      error_msg = None }
     | Some _ -> model
 
@@ -369,11 +425,14 @@ let history_next model =
   | None -> model
   | Some 0 ->
       { model with entry = model.history_save;
+                   entry_cursor = String.length model.history_save;
                    history_idx = None; history_save = "";
                    error_msg = None }
   | Some k ->
+      let entry = List.nth model.history (k - 1) in
       { model with history_idx = Some (k - 1);
-                   entry = List.nth model.history (k - 1);
+                   entry;
+                   entry_cursor = String.length entry;
                    error_msg = None }
 
 (* -------------------------------------------------------------------- *)
@@ -442,8 +501,8 @@ let is_text_char c =
 let update msg model =
   match msg with
   | Set_entry s ->
-      { model with entry = s; history_idx = None;
-                   history_save = ""; error_msg = None },
+      { (with_entry s model) with history_idx = None;
+                             history_save = ""; error_msg = None },
       Mosaic.Cmd.none
   | Submit s ->
       let model', should_quit = submit_repl model s in
@@ -487,31 +546,26 @@ let update msg model =
         match data.key with
         | Up   -> history_prev model, Mosaic.Cmd.none
         | Down -> history_next model, Mosaic.Cmd.none
+        | Left -> move_cursor (-1) model, Mosaic.Cmd.none
+        | Right -> move_cursor 1 model, Mosaic.Cmd.none
+        | Home -> cursor_home model, Mosaic.Cmd.none
+        | End -> cursor_end model, Mosaic.Cmd.none
+        | Delete -> delete_at_cursor model, Mosaic.Cmd.none
         | Enter ->
             let model', should_quit = submit_repl model model.entry in
             let model', cmd = take_pending model' in
             if should_quit then model', Mosaic.Cmd.perform (fun _ -> exit 0)
             else model', cmd
         | Backspace ->
-            let entry =
-              if String.length model.entry > 0 then
-                String.sub model.entry 0 (String.length model.entry - 1)
-              else ""
-            in
-            { model with entry; history_idx = None;
-                         history_save = ""; error_msg = None },
-            Mosaic.Cmd.none
+            delete_before_cursor model, Mosaic.Cmd.none
         | Char c when data.modifier.ctrl
                       && Uchar.equal c (Uchar.of_char 'u') ->
-            { model with entry = ""; history_idx = None;
-                         history_save = ""; error_msg = None },
+            { (reset_entry model) with history_idx = None;
+                                       history_save = ""; error_msg = None },
             Mosaic.Cmd.none
         | Char c when not data.modifier.ctrl && not data.modifier.alt
                       && is_text_char c ->
-            let s = model.entry ^ String.make 1 (Uchar.to_char c) in
-            { model with entry = s; history_idx = None;
-                         history_save = ""; error_msg = None },
-            Mosaic.Cmd.none
+            insert_text (String.make 1 (Uchar.to_char c)) model, Mosaic.Cmd.none
         | _ -> { model with error_msg = None }, Mosaic.Cmd.none
       else if model.entry <> "" && is_enter then
         push_entry model, Mosaic.Cmd.none
@@ -535,16 +589,10 @@ let update msg model =
             (match data.key with
             | Char c when not data.modifier.ctrl && not data.modifier.alt
                           && is_text_char c ->
-                let s = model.entry ^ String.make 1 (Uchar.to_char c) in
-                { model with entry = s; error_msg = None }, Mosaic.Cmd.none
+                insert_text (String.make 1 (Uchar.to_char c)) model, Mosaic.Cmd.none
             | _ -> { model with error_msg = None }, Mosaic.Cmd.none))
   | Backspace ->
-      let entry =
-        if String.length model.entry > 0 then
-          String.sub model.entry 0 (String.length model.entry - 1)
-        else ""
-      in
-      { model with entry; error_msg = None }, Mosaic.Cmd.none
+      delete_before_cursor model, Mosaic.Cmd.none
   | Enter ->
       if model.ui_mode = Repl then
         let model', should_quit = submit_repl model model.entry in
