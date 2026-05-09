@@ -1,0 +1,52 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  release:
+    types: [ created ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up OCaml
+      uses: ocaml/setup-ocaml@v3
+      with:
+        ocaml-compiler: 4.14.2
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libgsl-dev libncurses-dev camlp5 m4
+
+    - name: Install OCaml dependencies
+      run: opam install . --deps-only --with-test -y
+
+    - name: Build
+      run: opam exec -- dune build --profile release
+
+    - name: Prepare artifact
+      run: |
+        cp _build/default/src/orpie/main.exe orpie
+        chmod +x orpie
+        strip orpie
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: orpie-linux-x86_64
+        path: orpie
+
+    - name: Release
+      if: github.event_name == 'release'
+      uses: softprops/action-gh-release@v2
+      with:
+        files: orpie
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

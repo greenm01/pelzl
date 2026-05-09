@@ -1,0 +1,22 @@
+opam-version: "2.0"
+lib: [
+  "_build/install/default/lib/curses/META"
+  "_build/install/default/lib/curses/curses.a"
+  "_build/install/default/lib/curses/curses.cma"
+  "_build/install/default/lib/curses/curses.cmi"
+  "_build/install/default/lib/curses/curses.cmt"
+  "_build/install/default/lib/curses/curses.cmti"
+  "_build/install/default/lib/curses/curses.cmx"
+  "_build/install/default/lib/curses/curses.cmxa"
+  "_build/install/default/lib/curses/curses.ml"
+  "_build/install/default/lib/curses/curses.mli"
+  "_build/install/default/lib/curses/dune-package"
+  "_build/install/default/lib/curses/libcurses_stubs.a"
+  "_build/install/default/lib/curses/opam"
+]
+stublibs: "_build/install/default/lib/stublibs/dllcurses_stubs.so"
+doc: [
+  "_build/install/default/doc/curses/CHANGES.md"
+  "_build/install/default/doc/curses/README.md"
+]
+libexec: "_build/install/default/lib/curses/curses.cmxs"

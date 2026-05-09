@@ -1,0 +1,73 @@
+(library
+ (name curses)
+ (public_name curses)
+ (synopsis "OCaml bindings for ncursesw")
+ (modules curses)
+ (wrapped false)
+ (foreign_stubs
+  (language c)
+  (names ml_curses)
+  (flags
+   (:include c_flags.sexp)))
+ (libraries unix)
+ (c_library_flags
+  (:include c_library_flags.sexp)))
+
+(executable
+ (name discover)
+ (modules discover)
+ (libraries dune.configurator))
+
+(rule
+ (copy functions.c _functions.c))
+
+(rule
+ (copy keys.ml _keys.ml))
+
+(rule
+ (copy config.ml _config.ml))
+
+(rule
+ (target ml_curses.h)
+ (deps config.h)
+ (action
+  (with-stdout-to
+   %{target}
+   (echo ""))))
+
+(rule
+ (copy _config.h config.h))
+
+(rule
+ (target curses.ml)
+ (deps _curses.ml _config.ml _functions.c _keys.ml config.h)
+ (action
+  (chdir
+   %{project_root}
+   (with-stdout-to
+    %{target}
+    (system "%{cc} -x c -E _curses.ml")))))
+
+(rule
+ (targets c_flags.sexp c_library_flags.sexp config.ml _config.h)
+ (deps
+  (:discover discover.exe))
+ (action
+  (run %{discover})))
+
+; 2021-10-13 mbac: test.ml isn't a real unit test, and it doesn't seem to
+;  run from the testing environment properly (because curses?)
+;  [dune exec ./test.exe] is fine though
+;(test
+; (name test)
+; (modules test)
+; (libraries curses)
+; (action
+;  (run %{exe:test.exe})))
+
+; disable docstring warnings
+
+(env
+ (dev
+  (flags
+   (:standard -w -50))))

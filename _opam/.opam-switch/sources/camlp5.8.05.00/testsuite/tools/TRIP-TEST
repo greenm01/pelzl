@@ -1,0 +1,5 @@
+#!/bin/bash -x
+
+opam clean -y -s
+opam install -y --deps-only -t --working-dir .
+opam install --verbose --working-dir --with-test .

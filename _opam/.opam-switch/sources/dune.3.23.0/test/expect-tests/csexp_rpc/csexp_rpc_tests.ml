@@ -1,0 +1,170 @@
+open Stdune
+module Csexp_rpc = Rpc.Csexp_rpc
+open Csexp_rpc
+open Fiber.O
+open Dune_scheduler
+
+let () = Dune_tests_common.init ()
+
+type event =
+  | Fill of Fiber.fill
+  | Abort
+
+let server (where : Unix.sockaddr) =
+  (match where with
+   | ADDR_UNIX p ->
+     Fpath.unlink_no_err p;
+     let p = Path.of_string p in
+     Path.mkdir_p (Path.parent_exn p)
+   | _ -> ());
+  match Server.create [ where ] ~backlog:10 with
+  | Ok t -> t
+  | Error `Already_in_use -> assert false
+;;
+
+let client where = Csexp_rpc.Client.create where
+
+module Logger = struct
+  (* A little helper to make the output from the client and server
+     deterministic. Log messages are batched and outputted at the end. *)
+  type t =
+    { mutable messages : string list
+    ; name : string
+    }
+
+  let create ~name = { messages = []; name }
+  let log t fmt = Printf.ksprintf (fun m -> t.messages <- m :: t.messages) fmt
+
+  let print { messages; name } =
+    List.rev messages |> List.iter ~f:(fun msg -> printfn "%s: %s" name msg)
+  ;;
+end
+
+let ok_exn = function
+  | Ok s -> s
+  | Error `Closed -> failwith "closed"
+  | Error (`Exn exn) -> raise exn
+;;
+
+let scheduler_config =
+  { Scheduler.Config.concurrency = 1
+  ; print_ctrl_c_warning = false
+  ; watch_exclusions = []
+  }
+;;
+
+let run_scheduler f =
+  Dune_engine.Clflags.display := Quiet;
+  Scheduler.Run.go scheduler_config f ~on_event:(fun _ -> ())
+;;
+
+let stop_server server addr =
+  run_scheduler (fun () -> Server.stop server);
+  match (addr : Unix.sockaddr) with
+  | ADDR_UNIX path -> Fpath.unlink_no_err path
+  | ADDR_INET _ -> ()
+;;
+
+let temp_rpc_dir () =
+  Temp.temp_dir ~parent_dir:(Path.of_string ".") ~prefix:"test" ~suffix:"dune_rpc"
+;;
+
+let%expect_test "csexp server create on unix sockets" =
+  if not Sys.win32
+  then (
+    let tmp_dir = temp_rpc_dir () in
+    let addr : Unix.sockaddr =
+      Unix.ADDR_UNIX (Path.to_string (Path.relative tmp_dir "dunerpc.sock"))
+    in
+    let server = server addr in
+    stop_server server addr);
+  [%expect {| |}]
+;;
+
+let%expect_test "csexp server life cycle" =
+  let tmp_dir = temp_rpc_dir () in
+  let addr : Unix.sockaddr =
+    if Sys.win32
+    then ADDR_INET (Unix.inet_addr_loopback, 0)
+    else ADDR_UNIX (Path.to_string (Path.relative tmp_dir "dunerpc.sock"))
+  in
+  let client_log = Logger.create ~name:"client" in
+  let server_log = Logger.create ~name:"server" in
+  let run () =
+    let server = server addr in
+    let* sessions = Server.serve server in
+    let client = Csexp_rpc.Server.listening_address server |> List.hd |> client in
+    Fiber.fork_and_join_unit
+      (fun () ->
+         let log fmt = Logger.log client_log fmt in
+         let* client = Client.connect_exn client in
+         let* () = Session.write client [ List [ Atom "from client" ] ] >>| ok_exn in
+         log "written";
+         let* response = Session.read client in
+         (match response with
+          | None -> log "no response"
+          | Some sexp -> log "received %s" (Csexp.to_string sexp));
+         let* () = Session.close client in
+         log "closed";
+         Server.stop server)
+      (fun () ->
+         let log fmt = Logger.log server_log fmt in
+         let+ () =
+           Fiber.Stream.In.parallel_iter sessions ~f:(fun session ->
+             log "received session";
+             let* res = Csexp_rpc.Session.read session in
+             match res with
+             | None ->
+               log "session terminated";
+               Fiber.return ()
+             | Some csexp ->
+               log "received %s" (Csexp.to_string csexp);
+               Session.write session [ List [ Atom "from server" ] ] >>| ok_exn)
+         in
+         log "sessions finished")
+  in
+  run_scheduler run;
+  Logger.print client_log;
+  Logger.print server_log;
+  [%expect
+    {|
+    client: written
+    client: received (11:from server)
+    client: closed
+    server: received session
+    server: received (11:from client)
+    server: sessions finished |}]
+;;
+
+let%expect_test "csexp server stop rejects new connections" =
+  let tmp_dir = temp_rpc_dir () in
+  let addr : Unix.sockaddr =
+    if Sys.win32
+    then ADDR_INET (Unix.inet_addr_loopback, 0)
+    else ADDR_UNIX (Path.to_string (Path.relative tmp_dir "dunerpc.sock"))
+  in
+  let run () =
+    let server = server addr in
+    let* sessions = Server.serve server in
+    let listening_address = Csexp_rpc.Server.listening_address server |> List.hd in
+    Fiber.fork_and_join_unit
+      (fun () ->
+         let* () = Server.stop server in
+         let client = client listening_address in
+         let* res = Client.connect client in
+         let* outcome =
+           match res with
+           | Error _ ->
+             Client.stop client;
+             Fiber.return "connect failed"
+           | Ok session ->
+             let+ () = Session.close session in
+             "connected"
+         in
+         printfn "%s" outcome;
+         Fiber.return ())
+      (fun () -> Fiber.Stream.In.parallel_iter sessions ~f:(fun _ -> Fiber.return ()))
+  in
+  run_scheduler run;
+  [%expect {| connect failed |}]
+;;

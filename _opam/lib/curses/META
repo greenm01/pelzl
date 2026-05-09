@@ -1,0 +1,7 @@
+version = "1719c36"
+description = "OCaml bindings for ncursesw"
+requires = "unix"
+archive(byte) = "curses.cma"
+archive(native) = "curses.cmxa"
+plugin(byte) = "curses.cma"
+plugin(native) = "curses.cmxs"

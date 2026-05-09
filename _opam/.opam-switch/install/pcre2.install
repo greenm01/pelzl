@@ -1,0 +1,23 @@
+opam-version: "2.0"
+lib: [
+  "_build/install/default/lib/pcre2/META"
+  "_build/install/default/lib/pcre2/dune-package"
+  "_build/install/default/lib/pcre2/libpcre2_stubs.a"
+  "_build/install/default/lib/pcre2/opam"
+  "_build/install/default/lib/pcre2/pcre2.a"
+  "_build/install/default/lib/pcre2/pcre2.cma"
+  "_build/install/default/lib/pcre2/pcre2.cmi"
+  "_build/install/default/lib/pcre2/pcre2.cmt"
+  "_build/install/default/lib/pcre2/pcre2.cmti"
+  "_build/install/default/lib/pcre2/pcre2.cmx"
+  "_build/install/default/lib/pcre2/pcre2.cmxa"
+  "_build/install/default/lib/pcre2/pcre2.ml"
+  "_build/install/default/lib/pcre2/pcre2.mli"
+]
+stublibs: "_build/install/default/lib/stublibs/dllpcre2_stubs.so"
+doc: [
+  "_build/install/default/doc/pcre2/CHANGES.md"
+  "_build/install/default/doc/pcre2/LICENSE.md"
+  "_build/install/default/doc/pcre2/README.md"
+]
+libexec: "_build/install/default/lib/pcre2/pcre2.cmxs"

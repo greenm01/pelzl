@@ -1,0 +1,112 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"
+ "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <!-- strict.html,v -->
+  <!-- Copyright (c) INRIA 2007-2017 -->
+  <title>Camlp5</title>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <link rel="stylesheet" type="text/css" href="styles/base.css"
+        title="Normal" />
+</head>
+<body>
+
+<div id="menu">
+</div>
+
+<div id="content">
+
+<h1 class="top">Transitional and Strict modes</h1>
+
+<p>Since version 5.00, Camlp5 has been able to be installed in two
+  modes: the <em>transitional</em> mode and the <em>strict</em>
+  mode. When Camlp5 is installed, it works with one only of these
+  modes (the two modes contain indeed different definitions of some
+  interfaces and are incompatible with one another). The user must
+  choose in which mode he wants to use Camlp5.</p>
+
+<p>This notion has been introduced to ensure backward compatibility of
+  the Camlp5 syntax tree, together with the usage of a new quotation
+  kit "<tt>q_ast.cmo</tt>", which allows to use Camlp5 syntax tree
+  quotations in user syntax (with all its possible extensions).</p>
+
+<dl style="font-size:80%; font-style:oblique">
+  <dt>A short example of these syntax tree quotations:</dt>
+  <dd>
+    <p>If the syntax of the <a href="grammars.html">extensible
+        grammars</a> has been added, it is possible to write things
+      like:</p>
+<pre>
+  &lt;:expr&lt; EXTEND a: [ [ c = d -> $e$ ] ]; END >>;
+</pre>
+    <p>representing the syntax tree of this statement: this is not
+      possible with the classical quotation kit "<tt>q_MLast.cmo</tt>"
+      because all quotations must be there only
+      in <a href="revsynt.html">revised syntax</a> and without syntax
+      extensions.</p>
+  </dd>
+</dl>
+
+<p>Here are the differences between the two modes:</p>
+
+<dl>
+  <dt>Transitional</dt>
+  <dd>
+    <dl>
+      <dt>Compatibility</dt>
+      <dd>The syntax tree is fully compatible with the previous
+        versions of Camlp5, no changes has to be done in the users'
+        programs.</dd>
+      <dt>Quotation kit "<tt>q_ast.cmo</tt>"</dt>
+      <dd>The antiquotations are not available: when used, a syntax
+        error message is displayed.</dd>
+    </dl>
+  </dd>
+  <dt>Strict</dt>
+  <dd>
+    <dl>
+      <dt>Compatibility</dt>
+      <dd>The syntax tree is different, users' programs may have to be
+        modified, but not necessarily.</dd>
+      <dt>Quotation kit "<tt>q_ast.cmo</tt>"</dt>
+      <dd>All antiquotations are available.</dd>
+    </dl>
+  </dd>
+</dl>
+
+<p>In strict mode, the programs have more chances to be compatible
+  with the previous versions if they use syntax tree quotations rather
+  than syntax tree nodes. A solution is therefore to change the
+  expressions and patterns using nodes into expressions and patterns
+  using quotations (which is backward compatible).</p>
+
+<h2>Which mode is installed ?</h2>
+
+<p>To determine the mode of an installed version of Camlp5, type:</p>
+
+<pre>
+  camlp5 -pmode
+</pre>
+
+<h2>Selecting mode when compiling Camlp5</h2>
+
+<p>When compiling Camlp5 from source, the mode must first be selected
+  at configuration time. The <em>configure</em> script must be run
+  with one of these options:</p>
+
+<pre>
+  ./configure -strict
+  ./configure -transitional
+</pre>
+
+<p>The default is "transitional", i.e. without option, the sources are
+  compiled in transitional mode.</p>
+
+<div class="trailer">
+</div>
+
+</div>
+
+</body>
+</html>

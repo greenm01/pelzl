@@ -1,0 +1,129 @@
+camlp5-buildscripts: Sysadmin scripts for Camlp5 projects
+=========================================================
+
+This package is at version 0.06.
+
+Sysadmin scripts written in OCaml (and Perl precursors), for use with
+Camlp5 and Camlp5-based projects.  In previous versions (<= 0.05) the
+Perl scripts had been eliminated, but with a Windows port, it became
+clear that OCaml's `Unix` package on Windows is .... not sufficiently
+reliable to be a replacement for Perl.  So I've resurrected the Perl
+script for `LAUNCH` (`LAUNCH.PL`).
+
+To be clear: these Perl scripts/packages are only needed on Windows;
+on UNIX, they aren't installed or required.
+
+== Installation
+
+On UNIX the Perl prereqs are unnecessary, so
+```
+$ opam install camlp5-buildscripts
+```
+
+suffices.  On Windows, we need:
+
+* IPC::System::Simple
+* String::ShellQuote
+
+The latter is not packaged by Cygwin.  To install them, you will need
+to use the Perl `cpan` too.  You can look in
+`.github/workflows/ci-windows.yml` (the step "install Perl deps") for
+an automated exampleof how to do it.
+
+== Invocation
+
+The scripts are not installed in a bin-directory, but rather in the
+package's directory.  So to invoke, we use the ocamlfind "exe" syntax.  For example, to invoke "fixin":
+```
+ocamlfind camlp5-buildscripts/fixin .... args ....
+```
+
+== The Scripts
+
+`fixin`::
+
+"fixes" the `#!` line of a script so that it points at an executable
+on the current `PATH`.  That is, if the #! line is
+
+```
+#!perl
+```
+
+then it will be rewritten to the full-path of the `perl` that is found
+on the current `PATH`.
+
+`join_meta`::
+
+Joins up a bunch of `META` files into a single `META` file.  The idea
+is, you have a bunch of subdirectories, each of which installs a subpackage.
+One of those subpackages might actually be the "main" package, and you
+want the other subdirectories' META files to become subpackages in the
+new META file you're constructing.  And at the same time, you'll want
+to rewrite names of those subpackages.  For example, if your target
+package is `pa_ppx_regexp`, and you have two subdirectories:
+
+* `pa_perl` which installs a package `pa_ppx_regexp`
+* `runtime` which installs a package `pa_ppx_regexp_runtime`
+
+then you might want to build a composite `META` file that is based on
+that of `pa_perl`, but has `runtime`'s `META` file as a subpackage,
+named `"runtime"`.  And then you'd want to replace all instances of
+`pa_ppx_regexp_runtime` with `pa_ppx_regexp.runtime` (notice "_" changes
+to ".") but only in `require` statements.
+
+`join_meta` does the above.  Its usage:
+
+```
+join_meta -destdir <dir>
+  -direct-include <subdir>    directly include <subdir>/META file
+  -wrap-subdir <name>:<subdir>    include <subdir>/META file wrapped as subpackage <name>
+  -rewrite <name1>:<name2>    rewrite packages named <name1> to <name2> in `require' statements
+  -help  Display this list of options
+  --help  Display this list of options
+```
+
+It assumes that every subdirectory has a `META` file already-created,
+and joins them up, outputing the result to stdout.
+
+`ya-wrap-ocamlfind`::
+
+"yet another ocamlfind wrapper".  No doco yet.
+
+`LAUNCH`::
+
+`LAUNCH` assumes (and noisily fails if not present) there is an
+environment variable `TOP` that is either a relative or absolute
+reference to the top-level directory of the current project.  It adds
+`$(TOP)/local-install/bin` to the `PATH` and sets `OCAMLPATH` to
+`$(TOP)/local-install/lib:` -- IF these directories exist.  This is
+useful for running `ocamlfind` commands that use the
+`$(TOP)/local-install` directory as a local installation-directory
+(hence no need to pollute global install-directories with package
+installation during complex multi-step builds.  This means that when
+running tests (and multistep builds), we can assume that already-built
+packages are "installed" and can use `ocamlfind` to access them.
+
+`LAUNCH` is invoked thus:
+
+```
+ocamlfind camlp5-buildscripts/LAUNCH -v -- <cmd>
+```
+
+Note that the `--` is mandatory.
+
+== Maintenance
+
+There are two directories containing these scripts: `pa_ppx_src` and
+`src`.  The former directory contains scripts that are written using
+`pa_ppx_regexp` and whatever other PPX rewriters one might desire.  The
+latter directory contains those same scripts, but after expansion via
+`not-ocamlfind preprocess` The "make all install" process only builds
+the scripts in `src`, so PPX rewriters are not necessary to build and
+install this project -- which is the point, so that this project can
+be used as build-scripts in `camlp5` and various PPX rewriter
+projects.
+
+There is a "bootstrap" target in the toplevel that will update the
+scripts in `src` if they are out-of-date w.r.t. the versions in
+`pa_ppx_src`, but it should be a no-op unless being used by the
+maintainer of this package.

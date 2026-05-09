@@ -4,7 +4,7 @@
   (preprocess
     (action
       (system "camlp5o %{input-file}")))
-  (flags (:standard -w -27-35-52 -thread))
+  (flags (:standard -w -27-35-52 -thread -alert -deprecated))
   (libraries curses gsl num str threads))
 
 

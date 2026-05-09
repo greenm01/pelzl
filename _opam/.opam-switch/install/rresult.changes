@@ -1,0 +1,30 @@
+opam-version: "2.0"
+added: [
+  "doc/rresult" {"D"}
+  "doc/rresult/CHANGES.md" {"F:S1598T1778334703.76"}
+  "doc/rresult/LICENSE.md" {"F:S741T1778334703.76"}
+  "doc/rresult/README.md" {"F:S1310T1778334703.76"}
+  "doc/rresult/odoc-pages" {"D"}
+  "doc/rresult/odoc-pages/index.mld" {"F:S80T1778334703.76"}
+  "lib/rresult" {"D"}
+  "lib/rresult/META" {"F:S460T1778334703.76"}
+  "lib/rresult/opam" {"F:S1184T1778334703.76"}
+  "lib/rresult/rresult.a" {"F:S33730T1778334703.76"}
+  "lib/rresult/rresult.cma" {"F:S37319T1778334703.76"}
+  "lib/rresult/rresult.cmi" {"F:S8839T1778334703.76"}
+  "lib/rresult/rresult.cmt" {"F:S80028T1778334703.76"}
+  "lib/rresult/rresult.cmti" {"F:S58884T1778334703.76"}
+  "lib/rresult/rresult.cmx" {"F:S3631T1778334703.76"}
+  "lib/rresult/rresult.cmxa" {"F:S563T1778334703.76"}
+  "lib/rresult/rresult.cmxs" {"F:S44992T1778334703.76"}
+  "lib/rresult/rresult.ml" {"F:S5304T1778334703.76"}
+  "lib/rresult/rresult.mli" {"F:S11050T1778334703.76"}
+  "lib/rresult/rresult_top.a" {"F:S4214T1778334703.76"}
+  "lib/rresult/rresult_top.cma" {"F:S3287T1778334703.76"}
+  "lib/rresult/rresult_top.cmt" {"F:S6645T1778334703.76"}
+  "lib/rresult/rresult_top.cmx" {"F:S1335T1778334703.76"}
+  "lib/rresult/rresult_top.cmxa" {"F:S1341T1778334703.76"}
+  "lib/rresult/rresult_top.cmxs" {"F:S18792T1778334703.76"}
+  "lib/rresult/rresult_top.ml" {"F:S1310T1778334703.76"}
+  "lib/rresult/rresult_top_init.ml" {"F:S1247T1778334703.76"}
+]

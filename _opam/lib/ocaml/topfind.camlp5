@@ -1,0 +1,36 @@
+#use "topfind";;
+
+(* Add "#camlp5o" directive: *)
+
+let _ =
+Toploop.add_directive
+    "camlp5o"
+    (Toploop.Directive_none
+       Topfind.(fun () ->
+	  (*protect*) (fun () ->
+		     syntax "camlp5o" ;
+		     load_deeply ["camlp5"]) ()
+       ))
+    (Toploop.{ section = "Syntax commands" ; doc = "Set Camlp5 'original' syntax" })
+ ;
+
+
+(* Add "#camlp5r" directive: *)
+    Toploop.add_directive
+    "camlp5r"
+    (Toploop.Directive_none
+       Topfind.(fun () ->
+	  (*protect*) (fun () ->
+		     syntax "camlp5r";
+		     load_deeply ["camlp5"]) ()
+       ))
+    (Toploop.{ section = "Syntax commands" ; doc = "Set Camlp5 'revised' syntax" })
+ ;
+
+
+print_endline
+  ("Additional Camlp5 directives:\n" ^
+   "  #camlp5o;;                to load camlp5 (standard syntax)\n" ^
+   "  #camlp5r;;                to load camlp5 (revised syntax)\n" ^
+   "")
+;;

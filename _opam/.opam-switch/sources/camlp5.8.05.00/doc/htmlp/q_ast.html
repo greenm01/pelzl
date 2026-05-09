@@ -1,0 +1,86 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"
+ "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <!-- q_ast.html,v -->
+  <!-- Copyright (c) INRIA 2007-2017 -->
+  <title>q_ast.cmo</title>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <link rel="stylesheet" type="text/css" href="styles/base.css"
+        title="Normal" />
+</head>
+<body>
+
+<div id="menu">
+</div>
+
+<div id="content">
+
+<h1 class="top">Syntax tree quotations in user syntax</h1>
+
+<p>The quotation kit "<tt>q_ast.cmo</tt>" allows to use syntax tree
+  quotations in user syntax. It fully works only in "strict" mode. In
+  "transitional" mode, there is no way to use antiquotations, which
+  restricts its utility.</p>
+
+<p>If this kit is loaded, when a quotation of syntax tree is found,
+  the current OCaml language parser is called. Then, the resulting
+  tree is reified (except the antiquotations) to represent <em>the
+  syntax tree of the syntax tree</em>.</p>
+
+<h2>Antiquotations</h2>
+
+<p>The OCaml langage parser used, and its possible extensions, must
+  have been built to allow the places of the antiquotations. The
+  symbols enclosed by the meta-symbol "<tt>V</tt>" (see the chapter
+  about <a href="grammars.html">extensible grammars</a>, section
+  "symbols"), define where antiquotations can take place.</p>
+
+<p>There is no need to specify antiquotations for the main types
+  defined in the AST tree module ("<tt>MLast</tt>"): "<tt>expr</tt>",
+  "<tt>patt</tt>", "<tt>expr</tt>", "<tt>str_item</tt>",
+  "<tt>sig_item</tt>", and so on. All syntax parts of these types are
+  automatically antiquotable.</p>
+
+<p>For example, in Camlp5 sources, the grammar rule defining the
+  "let..in" statement is:</p>
+
+<pre>
+   "let"; r = V (FLAG "rec") "flag" "opt";
+    l = V (LIST1 let_binding SEP "and"); "in"; x = expr
+</pre>
+
+<p>All symbols of these rules, except the keywords, are antiquotable:</p>
+
+<ul>
+  <li>The "rec" flag, because enclosed by the "V" meta symbol. The two
+    strings which follow it gives the possible antiquotation kinds:
+    "flag" (the normal antiquotation kind) and "opt" (kept by backward
+    compatibility, but not recommended). It is therefore possible to
+    antiquote it as: "<tt>$flag:...$</tt>" or "<tt>$opt:...$</tt>"
+    where the "<tt>...</tt>" is an expression or a pattern depending
+    on the position of the enclosing quotation</li>
+  <li>The binding list is also antiquotable, since it is also enclosed
+    by the "V" meta symbol. Its antiquotation kind is "list" (the
+    default when the meta symbol parameter is a list). It is therefore
+    possible to write "<tt>$list:...$</tt>" at the place of the
+    binding list.</li>
+  <li>The expression after the "in" is also antiquotable, because it
+    belongs to the main types defined in the module "<tt>MLast</tt>".</li>
+</ul>
+
+<p>In that example, the variable "<tt>r</tt>" is of type "<tt>Ploc.vala
+  bool</tt>", the variable "<tt>r</tt>" of type "<tt>Ploc.vala (list
+  (patt * expr))</tt>" and the variable "<tt>x</tt>" of type
+  "<tt>MLast.expr</tt>".</p>
+
+<p>... to be completed ...</p>
+
+<div class="trailer">
+</div>
+
+</div>
+
+</body>
+</html>

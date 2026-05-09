@@ -1,0 +1,105 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"
+ "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <!-- extfun.html,v -->
+  <!-- Copyright (c) INRIA 2007-2017 -->
+  <title>Extensible functions</title>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <link rel="stylesheet" type="text/css" href="styles/base.css"
+        title="Normal" />
+</head>
+<body>
+
+<div id="menu">
+</div>
+
+<div id="content">
+
+<h1 class="top">Extensible functions</h1>
+
+<p>Extensible functions allows the definition of pattern matching functions
+which are extensible by adding new cases that are inserted
+automatically at the proper place by comparing the patterns. The pattern
+cases are ordered according to syntax trees representing them, "when"
+statements being inserted before the cases without "when".</p>
+
+<p>Notice that extensible functions are functional: when extending a
+function, a new function is returned.</p>
+
+<p>The extensible functions are used in
+the <a href="pretty.html">pretty printing</a> system of Camlp5.</p>
+
+<div id="tableofcontents">
+</div>
+
+<h2>Syntax</h2>
+
+<p>The syntax of the extensible functions, when loading
+"pa_extfun.cmo", is the following:</p>
+
+<pre>
+           expression ::= extensible-function
+  extensible-function ::= "extfun" expression "with" "[" match-cases "]"
+          match-cases ::= match-case "|" match-cases
+           match-case ::= pattern "->" expression
+                        | pattern "when" expression "->" expression
+</pre>
+
+<p>It is an extension of the same syntax as the "match" and "try"
+constructions.</p>
+
+<h2>Semantics</h2>
+
+<p>The statement "extend" defined by the syntax takes an extensible
+function and return another extensible function with the new match
+cases inserted at the proper place within the initial extensible
+function.</p>
+
+<p>Extensible functions are of type "<code>Extfun.t a b</code>", which
+is an abstract type, where "<code>a</code>" and "<code>b</code>" are
+respectively the type of the patterns and the type of the
+expressions. It corresponds to a function of type "<code>a ->
+b</code>".</p>
+
+<p>The function "<code>Extfun.apply</code>" takes an extensible
+function as parameter and returns a function which can be applied
+like a normal function.</p>
+
+<p>The value "<code>Extfun.empty</code>" is an empty extensible
+function, of type "<code>Extfun.t 'a 'b</code>". When applied with
+"<code>Extfun.apply</code>" and a parameter, it raises the exception
+"<code>Extfun.Failure</code>" whatever the parameter.</p>
+
+<p>For debugging, it is possible to use the function
+"<code>Extfun.print</code>" which displays the match cases of the
+extensible functions. (Only the patterns are displayed in
+clear text, the associated expressions are not.)</p>
+
+<p>The match cases are inserted according to the following rules:</p>
+
+<ul>
+  <li>The match cases are inserted in the order they are defined in
+    the syntax "<code>extend</code>"</li>
+  <li>A match case pattern with "when" is inserted before a match case
+    pattern without "when".</li>
+  <li>Two match cases patterns both with "when" or both without "when"
+    are inserted according to the alphabetic order of some internal
+    syntax tree of the patterns where bound variables names are
+    <span class="u">not</span> taken into account.</li>
+  <li>If two match cases patterns without "when" have the same
+    patterns internal syntax tree, the initial one is silently
+    removed.</li>
+  <li>If two match cases patterns with "when" have the same patterns
+    internal syntax tree, the new one is inserted before the old
+    one.</li>
+</ul>
+
+<div class="trailer">
+</div>
+
+</div>
+
+</body>
+</html>

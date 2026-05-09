@@ -1,0 +1,9 @@
+opam-version: "2.0"
+added: [
+  "lib/camlp5-buildscripts" {"D"}
+  "lib/camlp5-buildscripts/LAUNCH" {"F:S837370T1778334711.78"}
+  "lib/camlp5-buildscripts/META" {"F:S0T1778334711.78"}
+  "lib/camlp5-buildscripts/fixin" {"F:S836755T1778334711.74"}
+  "lib/camlp5-buildscripts/join_meta" {"F:S838272T1778334711.76"}
+  "lib/camlp5-buildscripts/ya-wrap-ocamlfind" {"F:S836583T1778334711.71"}
+]

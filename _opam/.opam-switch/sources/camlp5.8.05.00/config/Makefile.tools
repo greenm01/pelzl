@@ -1,0 +1,16 @@
+
+DIFF=diff
+BASH=/bin/bash
+
+ifdef OPAMROOT
+
+ifeq ($(shell opam var os),freebsd)
+DIFF:=gdiff
+BASH:=/usr/local/bin/bash
+endif
+
+ifeq ($(shell opam var os),opensuse)
+DIFF:=gdiff
+endif
+
+endif

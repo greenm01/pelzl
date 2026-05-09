@@ -1,0 +1,7 @@
+version = "2.2.0"
+description = ""
+requires = ""
+archive(byte) = "graph.cma"
+archive(native) = "graph.cmxa"
+plugin(byte) = "graph.cma"
+plugin(native) = "graph.cmxs"

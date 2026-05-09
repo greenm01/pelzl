@@ -1,0 +1,13 @@
+*.o
+myconfig
+*/.depend.bak
+local-install
+.tramp_history
+*/.tramp_history
+*/*/.tramp_history
+.merlin
+*/.merlin
+*/*/.merlin
+*.ppo
+*.corrected
+*.cm*

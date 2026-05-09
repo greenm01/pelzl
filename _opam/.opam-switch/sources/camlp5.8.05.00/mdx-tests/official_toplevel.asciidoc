@@ -1,0 +1,106 @@
+<!-- $MDX env=official -->
+```ocaml
+# #use "../local-install/lib/ocaml/topfind.camlp5";;
+- : unit = ()
+Findlib has been successfully loaded. Additional directives:
+  #require "package";;      to load a package
+  #list;;                   to list the available packages
+  #camlp4o;;                to load camlp4 (standard syntax)
+  #camlp4r;;                to load camlp4 (revised syntax)
+  #predicates "p,q,...";;   to set these predicates
+  Topfind.reset();;         to force that packages will be reloaded
+  #thread;;                 to enable threads
+
+- : unit = ()
+Additional Camlp5 directives:
+  #camlp5o;;                to load camlp5 (standard syntax)
+  #camlp5r;;                to load camlp5 (revised syntax)
+
+- : unit = ()
+# #camlp5o ;;
+# let exc_converter = function
+    Exit as exc ->
+    let s = Printexc.to_string exc in
+    Some (Location.error s)
+  | _ -> None
+val exc_converter : exn -> Location.report option = <fun>
+# Location.register_error_of_exn exc_converter ;;
+- : unit = ()
+```
+
+<!-- $MDX env=official -->
+```ocaml
+# let x = 1 ;;
+val x : int = 1
+```
+
+```sh
+$ ocaml < fixtures/official_toplevel_linedir1.ml
+
+#   File "fixtures/q.ml", line 10, characters 6-7:
+Error: Syntax error
+#
+```
+
+```sh
+$ ocaml < fixtures/official_toplevel_linedir2.ml
+
+# - : unit = ()
+Findlib has been successfully loaded. Additional directives:
+  #require "package";;      to load a package
+  #list;;                   to list the available packages
+  #camlp4o;;                to load camlp4 (standard syntax)
+  #camlp4r;;                to load camlp4 (revised syntax)
+  #predicates "p,q,...";;   to set these predicates
+  Topfind.reset();;         to force that packages will be reloaded
+  #thread;;                 to enable threads
+
+- : unit = ()
+Additional Camlp5 directives:
+  #camlp5o;;                to load camlp5 (standard syntax)
+  #camlp5r;;                to load camlp5 (revised syntax)
+
+- : unit = ()
+	Camlp5 parsing version (OCaml) 8.05.00
+
+#   Toplevel input:
+# # 10 "fixtures/r.ml"
+  let _ _ = 1 ;;
+      ^
+Failure: this is not a constructor, it cannot be applied in a pattern
+#
+```
+
+```sh
+$ ocaml < fixtures/official_toplevel_linedir1use.ml
+
+#   File "fixtures/s.ml", line 10, characters 6-7:
+Error: Syntax error
+#
+```
+
+```sh
+$ ocaml < fixtures/official_toplevel_linedir2use.ml
+
+# - : unit = ()
+Findlib has been successfully loaded. Additional directives:
+  #require "package";;      to load a package
+  #list;;                   to list the available packages
+  #camlp4o;;                to load camlp4 (standard syntax)
+  #camlp4r;;                to load camlp4 (revised syntax)
+  #predicates "p,q,...";;   to set these predicates
+  Topfind.reset();;         to force that packages will be reloaded
+  #thread;;                 to enable threads
+
+- : unit = ()
+Additional Camlp5 directives:
+  #camlp5o;;                to load camlp5 (standard syntax)
+  #camlp5r;;                to load camlp5 (revised syntax)
+
+- : unit = ()
+	Camlp5 parsing version (OCaml) 8.05.00
+
+#   File "fixtures/s.ml", line 10, characters 4-5:
+Failure: this is not a constructor, it cannot be applied in a pattern
+#
+```

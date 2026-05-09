@@ -1,0 +1,37 @@
+(lang dune 3.23)
+(name pcre2)
+(sections (lib .) (libexec .) (doc ../../doc/pcre2) (stublibs ../stublibs))
+(files
+ (lib
+  (META
+   dune-package
+   libpcre2_stubs.a
+   opam
+   pcre2.a
+   pcre2.cma
+   pcre2.cmi
+   pcre2.cmt
+   pcre2.cmti
+   pcre2.cmx
+   pcre2.cmxa
+   pcre2.ml
+   pcre2.mli))
+ (libexec (pcre2.cmxs))
+ (doc (CHANGES.md LICENSE.md README.md))
+ (stublibs (dllpcre2_stubs.so)))
+(library
+ (name pcre2)
+ (kind normal)
+ (archives (byte pcre2.cma) (native pcre2.cmxa))
+ (plugins (byte pcre2.cma) (native pcre2.cmxs))
+ (foreign_objects pcre2_stubs.o)
+ (foreign_archives (archives (for all) (files libpcre2_stubs.a)))
+ (foreign_dll_files ../stublibs/dllpcre2_stubs.so)
+ (native_archives pcre2.a)
+ (main_module_name Pcre2)
+ (modes byte native)
+ (modules
+  (singleton
+   (obj_name pcre2)
+   (visibility public)
+   (source (path Pcre2) (intf (path pcre2.mli)) (impl (path pcre2.ml))))))
