@@ -1,9 +1,12 @@
 type entry_mode = Normal | Integer | Complex | Matrix | Units
 
+type ui_mode = Modern | Classic
+
 type model = {
   calc : Pelzl_engine.calc_state;
   entry : string;
   entry_mode : entry_mode;
+  ui_mode : ui_mode;
   error_msg : string option;
   show_help : bool;
   help_page : int;
@@ -93,11 +96,11 @@ let register_default_bindings () =
   bind "R" (Command SetRadians);
   ()
 
-let init () =
+let init mode () =
   register_default_bindings ();
   (try Rcfile.process_rcfile None with _ -> ());
   let calc = Pelzl_engine.empty_state in
   let calc = { calc with modes = { angle = Deg; base = Dec; complex = Rect } } in
-  ({ calc; entry = ""; entry_mode = Normal; error_msg = None;
+  ({ calc; entry = ""; entry_mode = Normal; ui_mode = mode; error_msg = None;
      show_help = false; help_page = 0; width = 80; height = 24 },
    Mosaic.Cmd.none)
