@@ -1,6 +1,6 @@
 opam-version: "2.0"
 name: "pelzl"
-version: "1.6.1"
+version: "1.0"
 maintainer: "Mason Austin Green <mason@greenm01.net>"
 authors: ["Paul Pelzl <pelzlpj@gmail.com>" "Mason Austin Green <mason@greenm01.net>"]
 homepage: "https://github.com/greenm01/pelzl"
