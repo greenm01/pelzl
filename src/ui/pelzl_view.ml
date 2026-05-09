@@ -218,11 +218,16 @@ let repl_view model =
               "pelzl -- ':help' for commands, ':quit' or Ctrl-D to exit")
     end
   in
-  let prompt =
-    Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row (
-      [ Mosaic.text ~style:style_prompt "> " ]
-      @ highlight_entry model.calc model.entry
-      @ [ Mosaic.text ~style:style_cursor " " ])
+  let prompt_row =
+    Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row
+      [ Mosaic.text ~style:style_prompt "> ";
+        Mosaic.input ~value:model.entry
+          ~on_input:(fun s -> Some (Set_entry s))
+          ~on_submit:(fun s -> Some (Submit s))
+          ~placeholder:"expression…"
+          ~cursor_style:`Block
+          ~autofocus:true
+          () ]
   in
   let preview_row =
     match preview_for model.calc model.entry with
@@ -239,9 +244,14 @@ let repl_view model =
         [ Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row
             [ Mosaic.text ~style:style_err ("  ! " ^ msg) ] ]
   in
+  let hint_row =
+    Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row
+      [ Mosaic.text ~style:style_dim
+          "  ↑↓ history  :help  :vars  :quit  Ctrl-D exit" ]
+  in
   let banner_row = match banner with None -> [] | Some n -> [ n ] in
   Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Column
-    (banner_row @ [ prompt ] @ preview_row @ error_row)
+    (banner_row @ [ prompt_row ] @ preview_row @ error_row @ [ hint_row ])
 
 let view model =
   match model.ui_mode with

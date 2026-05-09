@@ -13,12 +13,15 @@ type repl_record =
 type model = {
   calc : Pelzl_engine.calc_state;
   entry : string;
-  cursor : int;                       (* byte offset within entry *)
   entry_mode : entry_mode;
   ui_mode : ui_mode;
   slogan : string;
   error_msg : string option;          (* transient, cleared on next keystroke *)
-  history : string list;              (* used by Classic only *)
+  (* Repl: REPL input history, newest first.
+     Classic: legacy trace log. *)
+  history : string list;
+  history_idx : int option;           (* Repl: None=live; Some k=k steps back *)
+  history_save : string;              (* Repl: live entry stashed during nav *)
   show_help : bool;
   help_page : int;
   width : int;
@@ -28,6 +31,10 @@ type model = {
 
 type msg =
   | Key_input of Mosaic.Event.Key.t
+  | Set_entry of string
+  | Submit of string
+  | History_prev
+  | History_next
   | Backspace
   | Enter
   | Clear_error
@@ -131,7 +138,12 @@ let init mode () =
   let slogan = all_taglines.(Random.int (Array.length all_taglines)) in
   let calc = Pelzl_engine.empty_state in
   let calc = { calc with modes = { angle = Deg; base = Dec; complex = Rect } } in
-  ({ calc; entry = ""; cursor = 0; entry_mode = Normal; ui_mode = mode;
-     slogan; error_msg = None; history = []; show_help = false;
-     help_page = 0; width = 80; height = 24; pending_commit = None },
+  let history = match mode with
+    | Repl -> Pelzl_history.load ()
+    | Classic -> []
+  in
+  ({ calc; entry = ""; entry_mode = Normal; ui_mode = mode;
+     slogan; error_msg = None; history; history_idx = None;
+     history_save = ""; show_help = false; help_page = 0;
+     width = 80; height = 24; pending_commit = None },
    Mosaic.Cmd.none)

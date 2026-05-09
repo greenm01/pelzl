@@ -22,7 +22,7 @@ let parse_entry s =
       with Failure _ -> Pelzl_engine.RpcVariable s
 
 (* Classic-mode trace log. Repl mode never uses this. *)
-let add_history line model =
+let add_trace line model =
   if model.ui_mode = Classic then
     let history = model.history @ [line] in
     let len = List.length history in
@@ -65,8 +65,8 @@ let push_entry model =
     let entry = model.entry in
     let value = parse_entry entry in
     let new_calc = { model.calc with stack = Pelzl_engine.stack_push value model.calc.stack } in
-    let model = { model with entry = ""; cursor = 0; calc = new_calc } in
-    add_history (Printf.sprintf "Push %s" entry) model
+    let model = { model with entry = ""; calc = new_calc } in
+    add_trace (Printf.sprintf "Push %s" entry) model
 
 let exec_function model op =
   let model = push_entry model in
@@ -140,7 +140,7 @@ let exec_function model op =
     in
     let res_str = Pelzl_engine.get_display_line 1 new_calc in
     let model = { model with calc = new_calc; error_msg = None } in
-    add_history (Printf.sprintf "Apply '%s' -> Result: %s" (string_of_function op) res_str) model
+    add_trace (Printf.sprintf "Apply '%s' -> Result: %s" (string_of_function op) res_str) model
   with
   | Invalid_argument s -> { model with error_msg = Some s }
   | Pelzl_engine.Stack_error s -> { model with error_msg = Some s }
@@ -185,7 +185,7 @@ let exec_command model op =
       | _ -> ""
     in
     let model = { model with calc = new_calc; error_msg = None } in
-    if op_str <> "" then add_history op_str model else model
+    if op_str <> "" then add_trace op_str model else model
   with
   | Invalid_argument s -> { model with error_msg = Some s }
   | Pelzl_engine.Stack_error s -> { model with error_msg = Some s }
@@ -198,7 +198,7 @@ let exec_edit model op =
           String.sub model.entry 0 (String.length model.entry - 1)
         else ""
       in
-      { model with entry; cursor = String.length entry }
+      { model with entry }
   | Operations.Enter -> push_entry model
   | Operations.Minus ->
       let entry =
@@ -206,22 +206,14 @@ let exec_edit model op =
           String.sub model.entry 1 (String.length model.entry - 1)
         else "-" ^ model.entry
       in
-      { model with entry; cursor = String.length entry }
-  | Operations.SciNotBase ->
-      let entry = model.entry ^ "e" in
-      { model with entry; cursor = String.length entry }
+      { model with entry }
+  | Operations.SciNotBase -> { model with entry = model.entry ^ "e" }
   | Operations.BeginInteger -> { model with entry_mode = Integer }
   | Operations.BeginComplex -> { model with entry_mode = Complex }
   | Operations.BeginMatrix -> { model with entry_mode = Matrix }
-  | Operations.Separator ->
-      let entry = model.entry ^ "," in
-      { model with entry; cursor = String.length entry }
-  | Operations.Angle ->
-      let entry = model.entry ^ "<" in
-      { model with entry; cursor = String.length entry }
-  | Operations.BeginUnits ->
-      let entry = model.entry ^ "_" in
-      { model with entry; cursor = String.length entry }
+  | Operations.Separator -> { model with entry = model.entry ^ "," }
+  | Operations.Angle -> { model with entry = model.entry ^ "<" }
+  | Operations.BeginUnits -> { model with entry = model.entry ^ "_" }
   | Operations.Digit -> model
 
 (* -------------------------------------------------------------------- *)
@@ -230,7 +222,7 @@ let exec_edit model op =
 (* the live prompt. Errors are shown transiently in the live region.    *)
 (* -------------------------------------------------------------------- *)
 
-let trim s =
+let trim_ws s =
   let n = String.length s in
   let i = ref 0 in
   while !i < n && (s.[!i] = ' ' || s.[!i] = '\t') do incr i done;
@@ -238,7 +230,6 @@ let trim s =
   while !j >= !i && (s.[!j] = ' ' || s.[!j] = '\t') do decr j done;
   if !j < !i then "" else String.sub s !i (!j - !i + 1)
 
-(* Meta-command output is committed as a Repl_msg block. *)
 let meta_help_text =
   String.concat "\n" [
     "  arithmetic : + - * / % ^                     ";
@@ -246,11 +237,11 @@ let meta_help_text =
     "             : sinh cosh tanh asinh acosh atanh";
     "             : sqrt sq ln log exp abs ceil floor";
     "             : gamma lngamma erf erfc fact     ";
-    "  numbers    : 1.5e3, 0xff implicit via 0ffh   ";
-    "             : 101b 17o 42d ffh                ";
-    "  variables  : name = expr                     ";
+    "  numbers    : 1.5e3, ffh, 101b, 17o, 42d      ";
+    "  variables  : name = expr   (also 'ans')      ";
+    "  history    : up/down arrows recall lines     ";
     "  commands   : :vars :purge NAME :help :quit   ";
-    "  exit       : :quit, Ctrl-D, or Ctrl-Q        ";
+    "  exit       : :quit, Ctrl-D (empty), or Ctrl-Q";
   ]
 
 let format_vars calc =
@@ -271,16 +262,26 @@ let format_vars calc =
              (Pelzl_engine.get_display_line 1 tmp))
          names)
 
-(* Returns (model, optional message to commit) *)
+(* Bind 'ans' to top-of-stack after a successful eval. *)
+let bind_ans calc =
+  if Pelzl_engine.stack_length calc.Pelzl_engine.stack > 0 then begin
+    let v = Pelzl_engine.stack_peek 1 calc.Pelzl_engine.stack in
+    Hashtbl.replace (Pelzl_engine.get_variables calc) "ans" v
+  end;
+  calc
+
+(* Returns one of:
+   `Quit                  -- user asked to exit
+   `Commit (model, record) -- meta-command produced a record to commit
+   `Unknown               -- not a recognised meta-command *)
 let handle_meta model raw =
-  let s = trim raw in
+  let s = trim_ws raw in
   let parts =
     String.split_on_char ' ' s
     |> List.filter (fun x -> x <> "")
   in
   match parts with
-  | [":quit"] | [":q"] | [":exit"] ->
-      `Quit
+  | [":quit"] | [":q"] | [":exit"] -> `Quit
   | [":help"] | [":h"] | ["?"] ->
       `Commit (model, Repl_msg meta_help_text)
   | [":vars"] | [":v"] ->
@@ -295,34 +296,91 @@ let handle_meta model raw =
   | _ ->
       `Commit (model, Repl_msg (Printf.sprintf "  unknown command: %s" s))
 
-let eval_algebraic model =
-  let entry = model.entry in
-  let trimmed = trim entry in
-  if trimmed = "" then
-    ({ model with entry = ""; cursor = 0; error_msg = None;
+(* Prepend [s] to history (skip if same as head). Does not persist. *)
+let push_history model s =
+  match model.history with
+  | h :: _ when h = s -> model
+  | _ ->
+      let history = s :: model.history in
+      let history =
+        let rec take n = function
+          | [] -> []
+          | _ when n <= 0 -> []
+          | x :: rest -> x :: take (n - 1) rest
+        in
+        take 1000 history
+      in
+      { model with history }
+
+(* Submit a Repl-mode entry. Returns (model, should_quit). *)
+let submit_repl model raw =
+  let s = trim_ws raw in
+  if s = "" then
+    ({ model with entry = ""; history_idx = None;
+                  history_save = ""; error_msg = None;
                   pending_commit = None }, false)
-  else if String.length trimmed > 0 && trimmed.[0] = ':' then
-    match handle_meta model trimmed with
-    | `Quit -> ({ model with pending_commit = None }, true)
-    | `Commit (m, rec_) ->
-        ({ m with entry = ""; cursor = 0; error_msg = None;
-                  pending_commit = Some rec_ }, false)
   else
-    match Pelzl_algebraic.run model.calc trimmed with
-    | Ok (new_calc, display) ->
-        let rec_ = Repl_ok { input = trimmed; result = display } in
-        ({ model with calc = new_calc; entry = ""; cursor = 0;
-                      error_msg = None; pending_commit = Some rec_ }, false)
-    | Error e ->
-        let rec_ = Repl_err { input = trimmed; error = Pelzl_algebraic.pp_error e } in
-        ({ model with entry = ""; cursor = 0; error_msg = None;
-                      pending_commit = Some rec_ }, false)
+    (* Persist and remember. *)
+    let model = push_history model s in
+    Pelzl_history.append s;
+    if String.length s > 0 && s.[0] = ':' then
+      match handle_meta model s with
+      | `Quit ->
+          ({ model with entry = ""; history_idx = None;
+                        history_save = ""; pending_commit = None }, true)
+      | `Commit (m, rec_) ->
+          ({ m with entry = ""; history_idx = None;
+                    history_save = ""; error_msg = None;
+                    pending_commit = Some rec_ }, false)
+    else
+      match Pelzl_algebraic.run model.calc s with
+      | Ok (new_calc, display) ->
+          let new_calc = bind_ans new_calc in
+          let rec_ = Repl_ok { input = s; result = display } in
+          ({ model with calc = new_calc; entry = ""; history_idx = None;
+                        history_save = ""; error_msg = None;
+                        pending_commit = Some rec_ }, false)
+      | Error e ->
+          let rec_ = Repl_err { input = s; error = Pelzl_algebraic.pp_error e } in
+          ({ model with entry = ""; history_idx = None;
+                        history_save = ""; error_msg = None;
+                        pending_commit = Some rec_ }, false)
+
+(* History navigation. *)
+let history_prev model =
+  let len = List.length model.history in
+  if len = 0 then model
+  else
+    match model.history_idx with
+    | None ->
+        { model with
+          history_save = model.entry;
+          history_idx = Some 0;
+          entry = List.nth model.history 0;
+          error_msg = None }
+    | Some k when k + 1 < len ->
+        { model with history_idx = Some (k + 1);
+                     entry = List.nth model.history (k + 1);
+                     error_msg = None }
+    | Some _ -> model
+
+let history_next model =
+  match model.history_idx with
+  | None -> model
+  | Some 0 ->
+      { model with entry = model.history_save;
+                   history_idx = None; history_save = "";
+                   error_msg = None }
+  | Some k ->
+      { model with history_idx = Some (k - 1);
+                   entry = List.nth model.history (k - 1);
+                   error_msg = None }
 
 (* -------------------------------------------------------------------- *)
 (* Main update                                                          *)
 (* -------------------------------------------------------------------- *)
 
-(* Build the styled view that gets pushed into terminal scrollback. *)
+(* Style the committed scrollback record. *)
 let style_prompt =
   Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Cyan ~bold:true ()
 let style_input =
@@ -367,6 +425,18 @@ let take_pending model =
 
 let update msg model =
   match msg with
+  | Set_entry s ->
+      { model with entry = s; history_idx = None;
+                   history_save = ""; error_msg = None },
+      Mosaic.Cmd.none
+  | Submit s ->
+      let model', should_quit = submit_repl model s in
+      let model', cmd = take_pending model' in
+      if should_quit then model', Mosaic.Cmd.quit else model', cmd
+  | History_prev ->
+      history_prev model, Mosaic.Cmd.none
+  | History_next ->
+      history_next model, Mosaic.Cmd.none
   | Key_input ev ->
       let data = Mosaic.Event.Key.data ev in
       let key_binding =
@@ -393,40 +463,19 @@ let update msg model =
         { key = k; ctrl = data.modifier.ctrl; meta = data.modifier.alt }
       in
       let is_enter = (data.key = Enter) in
-      if model.ui_mode = Repl then begin
-        (* Sober REPL: minimal key handling. No RPN keymap. *)
+      if model.ui_mode = Repl then
+        (* In Repl mode the focused Mosaic.input handles editing.
+           Subscriptions only forward keys it didn't consume; we use
+           that channel for Up/Down history and emergency exits. *)
         match data.key with
-        | Enter ->
-            let model', should_quit = eval_algebraic model in
-            let model', cmd = take_pending model' in
-            if should_quit then model', Mosaic.Cmd.quit
-            else model', cmd
-        | Backspace ->
-            let entry =
-              if String.length model.entry > 0 then
-                String.sub model.entry 0 (String.length model.entry - 1)
-              else ""
-            in
-            { model with entry; cursor = String.length entry;
-                         error_msg = None }, Mosaic.Cmd.none
-        (* Ctrl-D: exit on empty entry, otherwise ignored *)
+        | Up -> history_prev model, Mosaic.Cmd.none
+        | Down -> history_next model, Mosaic.Cmd.none
         | Char c when data.modifier.ctrl
                       && Uchar.equal c (Uchar.of_char 'd')
                       && model.entry = "" ->
             model, Mosaic.Cmd.quit
-        (* Ctrl-U: clear entry *)
-        | Char c when data.modifier.ctrl
-                      && Uchar.equal c (Uchar.of_char 'u') ->
-            { model with entry = ""; cursor = 0;
-                         error_msg = None }, Mosaic.Cmd.none
-        | Char c when not data.modifier.ctrl && not data.modifier.alt
-                      && Uchar.is_char c ->
-            let s = model.entry ^ String.make 1 (Uchar.to_char c) in
-            { model with entry = s; cursor = String.length s;
-                         error_msg = None }, Mosaic.Cmd.none
-        | _ ->
-            model, Mosaic.Cmd.none
-      end else if model.entry <> "" && is_enter then
+        | _ -> model, Mosaic.Cmd.none
+      else if model.entry <> "" && is_enter then
         push_entry model, Mosaic.Cmd.none
       else
         let op_opt =
@@ -448,8 +497,7 @@ let update msg model =
             (match data.key with
             | Char c when not data.modifier.ctrl && not data.modifier.alt ->
                 let s = model.entry ^ String.make 1 (Uchar.to_char c) in
-                { model with entry = s; cursor = String.length s;
-                             error_msg = None }, Mosaic.Cmd.none
+                { model with entry = s; error_msg = None }, Mosaic.Cmd.none
             | _ -> { model with error_msg = None }, Mosaic.Cmd.none))
   | Backspace ->
       let entry =
@@ -457,11 +505,10 @@ let update msg model =
           String.sub model.entry 0 (String.length model.entry - 1)
         else ""
       in
-      { model with entry; cursor = String.length entry;
-                   error_msg = None }, Mosaic.Cmd.none
+      { model with entry; error_msg = None }, Mosaic.Cmd.none
   | Enter ->
       if model.ui_mode = Repl then
-        let model', should_quit = eval_algebraic model in
+        let model', should_quit = submit_repl model model.entry in
         let model', cmd = take_pending model' in
         if should_quit then model', Mosaic.Cmd.quit else model', cmd
       else
