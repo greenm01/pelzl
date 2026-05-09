@@ -423,6 +423,22 @@ let take_pending model =
       let cmd = Mosaic.Cmd.static_commit (render_record r) in
       ({ model with pending_commit = None }, cmd)
 
+let quit_cmd = Mosaic.Cmd.quit
+
+let is_ctrl_char (data : Input.Key.event) ch =
+  match data.key with
+  | Char c ->
+      (data.modifier.ctrl
+       && Uchar.is_char c
+       && Char.lowercase_ascii (Uchar.to_char c) = ch)
+      || Uchar.to_int c = Char.code ch - Char.code 'a' + 1
+  | _ -> false
+
+let is_text_char c =
+  Uchar.is_char c
+  && let code = Uchar.to_int c in
+     code >= 0x20 && code <> 0x7f
+
 let update msg model =
   match msg with
   | Set_entry s ->
@@ -432,7 +448,7 @@ let update msg model =
   | Submit s ->
       let model', should_quit = submit_repl model s in
       let model', cmd = take_pending model' in
-      if should_quit then model', Mosaic.Cmd.perform (fun _ -> exit 0)
+      if should_quit then model', quit_cmd
       else model', cmd
   | History_prev ->
       history_prev model, Mosaic.Cmd.none
@@ -464,7 +480,10 @@ let update msg model =
         { key = k; ctrl = data.modifier.ctrl; meta = data.modifier.alt }
       in
       let is_enter = (data.key = Enter) in
-      if model.ui_mode = Repl then
+      if is_ctrl_char data 'q'
+         || (is_ctrl_char data 'd' && model.entry = "")
+      then model, quit_cmd
+      else if model.ui_mode = Repl then
         match data.key with
         | Up   -> history_prev model, Mosaic.Cmd.none
         | Down -> history_next model, Mosaic.Cmd.none
@@ -483,16 +502,12 @@ let update msg model =
                          history_save = ""; error_msg = None },
             Mosaic.Cmd.none
         | Char c when data.modifier.ctrl
-                      && Uchar.equal c (Uchar.of_char 'd')
-                      && model.entry = "" ->
-            model, Mosaic.Cmd.perform (fun _ -> exit 0)
-        | Char c when data.modifier.ctrl
                       && Uchar.equal c (Uchar.of_char 'u') ->
             { model with entry = ""; history_idx = None;
                          history_save = ""; error_msg = None },
             Mosaic.Cmd.none
         | Char c when not data.modifier.ctrl && not data.modifier.alt
-                      && Uchar.is_char c ->
+                      && is_text_char c ->
             let s = model.entry ^ String.make 1 (Uchar.to_char c) in
             { model with entry = s; history_idx = None;
                          history_save = ""; error_msg = None },
@@ -510,7 +525,7 @@ let update msg model =
         (match op_opt with
         | Some (Operations.Function f) -> exec_function model f, Mosaic.Cmd.none
         | Some (Operations.Command c) ->
-            if c = Operations.Quit then model, Mosaic.Cmd.perform (fun _ -> exit 0)
+            if c = Operations.Quit then model, quit_cmd
             else if c = Operations.CycleHelp then { model with show_help = not model.show_help }, Mosaic.Cmd.none
             else exec_command model c, Mosaic.Cmd.none
         | Some (Operations.Edit e) -> exec_edit model e, Mosaic.Cmd.none
@@ -518,7 +533,8 @@ let update msg model =
             model, Mosaic.Cmd.none
         | None ->
             (match data.key with
-            | Char c when not data.modifier.ctrl && not data.modifier.alt ->
+            | Char c when not data.modifier.ctrl && not data.modifier.alt
+                          && is_text_char c ->
                 let s = model.entry ^ String.make 1 (Uchar.to_char c) in
                 { model with entry = s; error_msg = None }, Mosaic.Cmd.none
             | _ -> { model with error_msg = None }, Mosaic.Cmd.none))
@@ -533,7 +549,7 @@ let update msg model =
       if model.ui_mode = Repl then
         let model', should_quit = submit_repl model model.entry in
         let model', cmd = take_pending model' in
-        if should_quit then model', Mosaic.Cmd.perform (fun _ -> exit 0)
+        if should_quit then model', quit_cmd
         else model', cmd
       else
         { (push_entry model) with error_msg = None }, Mosaic.Cmd.none
@@ -550,4 +566,4 @@ let update msg model =
   | Resize (w, h) ->
       { model with width = w; height = h }, Mosaic.Cmd.none
   | Quit ->
-      model, Mosaic.Cmd.perform (fun _ -> exit 0)
+      model, quit_cmd

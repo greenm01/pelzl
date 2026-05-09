@@ -203,50 +203,33 @@ let preview_for calc s : string option =
          | Ok (_, display) -> Some display
          | Error _ -> None)
 
-let banner_seen = ref false
-
 let repl_view model =
-  (* On first render, emit a brief startup banner via static_commit-able
-     view? No — we render it inline as part of the live region the very
-     first time, then expect the user's first Enter to push state above.
-     Simpler: show banner only once below as a 1-line dim hint. *)
-  let banner =
-    if !banner_seen then None
-    else begin
-      banner_seen := true;
-      Some (Mosaic.text ~style:style_dim
-              "pelzl -- ':help' for commands, ':quit' or Ctrl-D to exit")
-    end
-  in
   let prompt =
     Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row (
       [ Mosaic.text ~style:style_prompt "> " ]
       @ highlight_entry model.calc model.entry
       @ [ Mosaic.text ~style:style_cursor " " ])
   in
-  let preview_row =
-    match preview_for model.calc model.entry with
-    | None -> []
-    | Some r ->
-        [ Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row
-            [ Mosaic.text ~style:style_dim "  = ";
-              Mosaic.text ~style:style_dim r ] ]
-  in
-  let error_row =
+  let status_row =
     match model.error_msg with
-    | None -> []
+    | None ->
+        (match preview_for model.calc model.entry with
+         | None -> Mosaic.text " "
+         | Some r ->
+             Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row
+               [ Mosaic.text ~style:style_dim "  = ";
+                 Mosaic.text ~style:style_dim r ])
     | Some msg ->
-        [ Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row
-            [ Mosaic.text ~style:style_err ("  ! " ^ msg) ] ]
+        Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row
+          [ Mosaic.text ~style:style_err ("  ! " ^ msg) ]
   in
   let hint_row =
     Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row
       [ Mosaic.text ~style:style_dim
           "  ↑↓ history  :help  :vars  :quit  Ctrl-D exit" ]
   in
-  let banner_row = match banner with None -> [] | Some n -> [ n ] in
   Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Column
-    (banner_row @ [ prompt ] @ preview_row @ error_row @ [ hint_row ])
+    [ prompt; status_row; hint_row ]
 
 let view model =
   match model.ui_mode with

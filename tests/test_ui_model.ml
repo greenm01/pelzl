@@ -69,6 +69,55 @@ let test_algebraic_eval () =
   check string "result correct" "7" (String.trim res_str);
   check (option string) "no error" None model'.error_msg
 
+let key ?(modifier = Input.Key.no_modifier) k =
+  Mosaic.Event.Key.of_input (Input.Key.make ~modifier k)
+
+let raw_ctrl_char code =
+  key (Input.Key.Char (Uchar.of_int code))
+
+let ctrl_char ch =
+  let modifier = { Input.Key.no_modifier with ctrl = true } in
+  key ~modifier (Input.Key.Char (Uchar.of_char ch))
+
+let cmd_is_quit = function
+  | Mosaic.Cmd.Quit -> true
+  | _ -> false
+
+let test_raw_ctrl_q_quits_repl_even_with_entry () =
+  let model, _cmd = init Repl () in
+  let model = { model with entry = "123" } in
+  let _model', cmd = update (Key_input (raw_ctrl_char 0x11)) model in
+  check bool "quit command" true (cmd_is_quit cmd)
+
+let test_uppercase_ctrl_q_quits_repl_even_with_entry () =
+  let model, _cmd = init Repl () in
+  let model = { model with entry = "123" } in
+  let _model', cmd = update (Key_input (ctrl_char 'Q')) model in
+  check bool "quit command" true (cmd_is_quit cmd)
+
+let test_raw_ctrl_d_quits_repl_only_when_entry_empty () =
+  let model, _cmd = init Repl () in
+  let _model', cmd = update (Key_input (raw_ctrl_char 0x04)) model in
+  check bool "empty entry quits" true (cmd_is_quit cmd);
+  let model = { model with entry = "123" } in
+  let model', cmd = update (Key_input (raw_ctrl_char 0x04)) model in
+  check bool "non-empty entry does not quit" false (cmd_is_quit cmd);
+  check string "entry preserved" "123" model'.entry
+
+let test_uppercase_ctrl_d_quits_repl_only_when_entry_empty () =
+  let model, _cmd = init Repl () in
+  let _model', cmd = update (Key_input (ctrl_char 'D')) model in
+  check bool "empty entry quits" true (cmd_is_quit cmd);
+  let model = { model with entry = "123" } in
+  let model', cmd = update (Key_input (ctrl_char 'D')) model in
+  check bool "non-empty entry does not quit" false (cmd_is_quit cmd);
+  check string "entry preserved" "123" model'.entry
+
+let test_raw_ctrl_q_quits_classic () =
+  let model, _cmd = init Classic () in
+  let _model', cmd = update (Key_input (raw_ctrl_char 0x11)) model in
+  check bool "classic quit command" true (cmd_is_quit cmd)
+
 let ui_tests = [
   ("model init creates empty state", `Quick, test_init_empty);
   ("random slogan initialization", `Quick, test_random_slogan);
@@ -79,4 +128,9 @@ let ui_tests = [
   ("update resize changes dimensions", `Quick, test_resize);
   ("ui mode selection", `Quick, test_ui_modes);
   ("algebraic evaluation", `Quick, test_algebraic_eval);
+  ("raw Ctrl-Q quits repl even with entry", `Quick, test_raw_ctrl_q_quits_repl_even_with_entry);
+  ("uppercase Ctrl-Q quits repl even with entry", `Quick, test_uppercase_ctrl_q_quits_repl_even_with_entry);
+  ("raw Ctrl-D quits repl only when empty", `Quick, test_raw_ctrl_d_quits_repl_only_when_entry_empty);
+  ("uppercase Ctrl-D quits repl only when empty", `Quick, test_uppercase_ctrl_d_quits_repl_only_when_entry_empty);
+  ("raw Ctrl-Q quits classic", `Quick, test_raw_ctrl_q_quits_classic);
 ]
