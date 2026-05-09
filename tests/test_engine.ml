@@ -123,7 +123,7 @@ let test_insufficient_args () =
 
 let test_variable_not_evaluated () =
   let st = { empty with stack = stack_push (RpcVariable "x") empty.stack } in
-  check_raises "eval unknown var" (Invalid_argument "variable \"x\" has not been evaluated") (fun () -> ignore (eval1 st))
+  check_raises "eval unknown var" (Invalid_argument "variable \"x\" is not bound") (fun () -> ignore (eval1 st))
 
 let engine_tests = [
   ("calc_add adds two floats", `Quick, test_add_floats);

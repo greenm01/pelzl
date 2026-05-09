@@ -71,7 +71,7 @@ let stack_push v st =
       Array.blit st.data 0 nd 0 (Array.length st.data);
       nd
     else
-      st.data
+      Array.copy st.data
   in
   new_data.(st.len) <- v;
   { data = new_data; len = st.len + 1 }
@@ -184,7 +184,7 @@ let empty_state = {
 let state_backup st = { st with backup = Some st }
 let state_restore st =
   match st.backup with
-  | Some b -> { b with backup = st.backup }
+  | Some b -> { st with stack = b.stack }
   | None -> st
 
 let with_stack f st = { st with stack = f st.stack }
@@ -262,12 +262,40 @@ let eval1 st =
         let value = Hashtbl.find st.variables vname in
         { st with stack = stack_push value s }
       with Not_found ->
-        raise (Invalid_argument ("variable \"" ^ vname ^ "\" has not been evaluated"))
+        raise (Invalid_argument ("variable \"" ^ vname ^ "\" is not bound"))
       end
   | _ -> { st with stack = stack_push el s }
 
-let rec evaln n st =
-  if n <= 0 then st else evaln (n - 1) (eval1 st)
+let evaln n st =
+  let rec grab acc n stack =
+    if n > 0 then
+      let el, stack' = stack_pop stack in
+      grab (el :: acc) (n - 1) stack'
+    else
+      (acc, stack)
+  in
+  let rec eval_elements stack = function
+    | [] -> stack
+    | el :: rest ->
+        let value =
+          match el with
+          | RpcVariable vname ->
+              (try Hashtbl.find st.variables vname
+               with Not_found ->
+                 raise (Invalid_argument ("variable \"" ^ vname ^ "\" is not bound")))
+          | _ -> el
+        in
+        eval_elements (stack_push value stack) rest
+  in
+  if n <= 0 then st
+  else
+    let els, stack0 = grab [] n st.stack in
+    try { st with stack = eval_elements stack0 els }
+    with Invalid_argument _ ->
+      raise (Invalid_argument
+        (match List.find_opt (function RpcVariable v -> not (Hashtbl.mem st.variables v) | _ -> false) els with
+         | Some (RpcVariable v) -> "variable \"" ^ v ^ "\" is not bound"
+         | _ -> "invalid argument"))
 
 let pop1_eval st =
   let st_eval = evaln 1 (state_backup st) in
@@ -314,6 +342,40 @@ let calc_inv st =
   match el with
   | RpcFloatUnit (f, u) -> push1 (RpcFloatUnit (1.0 /. f, Units.div Units.empty_unit u)) st'
   | RpcComplexUnit (c, u) -> push1 (RpcComplexUnit (Complex.inv c, Units.div Units.empty_unit u)) st'
+  | RpcFloatMatrixUnit (m, u) ->
+      let rows, cols = Gsl.Matrix.dims m in
+      if rows <> cols then raise (Invalid_argument "cannot invert non-square matrix");
+      let copy_for_svd = Gsl.Matrix.copy m
+      and copy_for_lu = Gsl.Matrix.copy m
+      and perm = Gsl.Permut.create cols
+      and inv = Gsl.Matrix.create cols cols
+      and vv = Gsl.Matrix.create cols cols
+      and ss = Gsl.Vector.create cols
+      and work = Gsl.Vector.create cols in
+      let norm = Gsl_assist.one_norm copy_for_svd in
+      Gsl.Matrix.scale copy_for_svd (1.0 /. norm);
+      Gsl.Linalg._SV_decomp ~a:(`M copy_for_svd) ~v:(`M vv) ~s:(`V ss) ~work:(`V work);
+      let condition_number = Gsl.Vector.get ss 0 /. Gsl.Vector.get ss (pred cols) in
+      if condition_number > 1e14 then
+        raise (Invalid_argument "cannot invert ill-conditioned matrix")
+      else begin
+        let _ = Gsl.Linalg._LU_decomp (`M copy_for_lu) perm in
+        Gsl.Linalg._LU_invert (`M copy_for_lu) perm (`M inv);
+        push1 (RpcFloatMatrixUnit (inv, Units.pow u (-1.0))) st'
+      end
+  | RpcComplexMatrixUnit (m, u) ->
+      let rows, cols = Gsl.Matrix_complex.dims m in
+      if rows <> cols then raise (Invalid_argument "cannot invert non-square matrix");
+      let copy = Gsl.Vectmat.cmat_convert ~protect:true (`CM m)
+      and perm = Gsl.Permut.create cols
+      and inv = Gsl.Matrix_complex.create cols cols in
+      begin try
+        let _ = Gsl.Linalg.complex_LU_decomp copy perm in
+        Gsl.Linalg.complex_LU_invert copy perm (`CM inv);
+        push1 (RpcComplexMatrixUnit (inv, Units.pow u (-1.0))) st'
+      with Gsl.Error.Gsl_exn _ ->
+        raise (Invalid_argument "cannot invert singular matrix")
+      end
   | _ -> raise (Invalid_argument "inversion is undefined for this data type")
 
 let calc_sqrt st =
@@ -556,27 +618,39 @@ let calc_asinh st =
   check_args 1 "asinh" st;
   let el, st' = pop1_eval st in
   match el with
+  | RpcInt i -> push1 (RpcFloatUnit (Gsl.Math.asinh (float_of_big_int i), Units.empty_unit)) st'
   | RpcFloatUnit (f, u) ->
       if has_units u then raise (Invalid_argument "cannot compute asinh of dimensioned value")
       else push1 (RpcFloatUnit (Gsl.Math.asinh f, Units.empty_unit)) st'
+  | RpcComplexUnit (c, u) ->
+      if has_units u then raise (Invalid_argument "cannot compute asinh of dimensioned value")
+      else push1 (RpcComplexUnit (Gsl.Gsl_complex.arcsinh c, Units.empty_unit)) st'
   | _ -> raise (Invalid_argument "invalid argument")
 
 let calc_acosh st =
   check_args 1 "acosh" st;
   let el, st' = pop1_eval st in
   match el with
+  | RpcInt i -> push1 (RpcFloatUnit (Gsl.Math.acosh (float_of_big_int i), Units.empty_unit)) st'
   | RpcFloatUnit (f, u) ->
       if has_units u then raise (Invalid_argument "cannot compute acosh of dimensioned value")
       else push1 (RpcFloatUnit (Gsl.Math.acosh f, Units.empty_unit)) st'
+  | RpcComplexUnit (c, u) ->
+      if has_units u then raise (Invalid_argument "cannot compute acosh of dimensioned value")
+      else push1 (RpcComplexUnit (Gsl.Gsl_complex.arccosh c, Units.empty_unit)) st'
   | _ -> raise (Invalid_argument "invalid argument")
 
 let calc_atanh st =
   check_args 1 "atanh" st;
   let el, st' = pop1_eval st in
   match el with
+  | RpcInt i -> push1 (RpcFloatUnit (Gsl.Math.atanh (float_of_big_int i), Units.empty_unit)) st'
   | RpcFloatUnit (f, u) ->
       if has_units u then raise (Invalid_argument "cannot compute atanh of dimensioned value")
       else push1 (RpcFloatUnit (Gsl.Math.atanh f, Units.empty_unit)) st'
+  | RpcComplexUnit (c, u) ->
+      if has_units u then raise (Invalid_argument "cannot compute atanh of dimensioned value")
+      else push1 (RpcComplexUnit (Gsl.Gsl_complex.arctanh c, Units.empty_unit)) st'
   | _ -> raise (Invalid_argument "invalid argument")
 
 let calc_re st =
@@ -597,36 +671,64 @@ let calc_gamma st =
   check_args 1 "gamma" st;
   let el, st' = pop1_eval st in
   match el with
+  | RpcInt i ->
+      begin try push1 (RpcFloatUnit (Gsl.Sf.gamma (float_of_big_int i), Units.empty_unit)) st'
+      with Gsl.Error.Gsl_exn (_, msg) -> raise (Invalid_argument msg)
+      end
   | RpcFloatUnit (f, u) ->
       if has_units u then raise (Invalid_argument "cannot compute gamma of dimensioned value")
-      else push1 (RpcFloatUnit (Gsl.Sf.gamma f, Units.empty_unit)) st'
+      else
+        begin try push1 (RpcFloatUnit (Gsl.Sf.gamma f, Units.empty_unit)) st'
+        with Gsl.Error.Gsl_exn (_, msg) -> raise (Invalid_argument msg)
+        end
   | _ -> raise (Invalid_argument "invalid argument")
 
 let calc_lngamma st =
   check_args 1 "lngamma" st;
   let el, st' = pop1_eval st in
   match el with
+  | RpcInt i ->
+      begin try push1 (RpcFloatUnit (Gsl.Sf.lngamma (float_of_big_int i), Units.empty_unit)) st'
+      with Gsl.Error.Gsl_exn (_, msg) -> raise (Invalid_argument msg)
+      end
   | RpcFloatUnit (f, u) ->
       if has_units u then raise (Invalid_argument "cannot compute lngamma of dimensioned value")
-      else push1 (RpcFloatUnit (Gsl.Sf.lngamma f, Units.empty_unit)) st'
+      else
+        begin try push1 (RpcFloatUnit (Gsl.Sf.lngamma f, Units.empty_unit)) st'
+        with Gsl.Error.Gsl_exn (_, msg) -> raise (Invalid_argument msg)
+        end
   | _ -> raise (Invalid_argument "invalid argument")
 
 let calc_erf st =
   check_args 1 "erf" st;
   let el, st' = pop1_eval st in
   match el with
+  | RpcInt i ->
+      begin try push1 (RpcFloatUnit (Gsl.Sf.erf (float_of_big_int i), Units.empty_unit)) st'
+      with Gsl.Error.Gsl_exn (_, msg) -> raise (Invalid_argument msg)
+      end
   | RpcFloatUnit (f, u) ->
-      if has_units u then raise (Invalid_argument "cannot compute erf of dimensioned value")
-      else push1 (RpcFloatUnit (Gsl.Sf.erf f, Units.empty_unit)) st'
+      if has_units u then raise (Invalid_argument "cannot compute error function of dimensioned value")
+      else
+        begin try push1 (RpcFloatUnit (Gsl.Sf.erf f, Units.empty_unit)) st'
+        with Gsl.Error.Gsl_exn (_, msg) -> raise (Invalid_argument msg)
+        end
   | _ -> raise (Invalid_argument "invalid argument")
 
 let calc_erfc st =
   check_args 1 "erfc" st;
   let el, st' = pop1_eval st in
   match el with
+  | RpcInt i ->
+      begin try push1 (RpcFloatUnit (Gsl.Sf.erfc (float_of_big_int i), Units.empty_unit)) st'
+      with Gsl.Error.Gsl_exn (_, msg) -> raise (Invalid_argument msg)
+      end
   | RpcFloatUnit (f, u) ->
       if has_units u then raise (Invalid_argument "cannot compute erfc of dimensioned value")
-      else push1 (RpcFloatUnit (Gsl.Sf.erfc f, Units.empty_unit)) st'
+      else
+        begin try push1 (RpcFloatUnit (Gsl.Sf.erfc f, Units.empty_unit)) st'
+        with Gsl.Error.Gsl_exn (_, msg) -> raise (Invalid_argument msg)
+        end
   | _ -> raise (Invalid_argument "invalid argument")
 
 let calc_fact st =
@@ -636,15 +738,18 @@ let calc_fact st =
   | RpcInt i ->
       if sign_big_int i >= 0 then
         let rec fact acc n =
-          if eq_big_int n unit_big_int then acc
+          if eq_big_int n zero_big_int then acc
           else fact (mult_big_int acc n) (pred_big_int n)
         in
         push1 (RpcInt (fact unit_big_int i)) st'
       else
-        raise (Invalid_argument "factorial requires nonnegative integer")
+        raise (Invalid_argument "integer factorial requires non-negative argument")
   | RpcFloatUnit (f, u) ->
       if has_units u then raise (Invalid_argument "cannot compute factorial of dimensioned value")
-      else push1 (RpcFloatUnit (Gsl.Sf.fact (int_of_float f), Units.empty_unit)) st'
+      else
+        begin try push1 (RpcFloatUnit (Gsl.Sf.gamma (f +. 1.0), Units.empty_unit)) st'
+        with Gsl.Error.Gsl_exn (_, msg) -> raise (Invalid_argument msg)
+        end
   | _ -> raise (Invalid_argument "invalid argument")
 
 let calc_transpose st =
@@ -666,14 +771,30 @@ let calc_transpose st =
 let calc_mod st =
   check_args 2 "mod" st;
   let el1, el2, st0 = pop2_eval st in
+  let int_of_real f =
+    if abs_float f < 1e9 then big_int_of_int (int_of_float f)
+    else raise (Invalid_argument "real argument is too large to convert to integer")
+  in
+  let reject_units u =
+    if has_units u then raise (Invalid_argument "cannot compute mod of dimensioned values")
+  in
+  let mod_checked i1 i2 =
+    if eq_big_int i2 zero_big_int then raise (Invalid_argument "division by zero")
+    else RpcInt (mod_big_int i1 i2)
+  in
   match el1, el2 with
-  | RpcInt i1, RpcInt i2 ->
-      push1 (RpcInt (mod_big_int i1 i2)) st0
+  | RpcInt i1, RpcInt i2 -> push1 (mod_checked i1 i2) st0
+  | RpcInt i1, RpcFloatUnit (f2, u2) ->
+      reject_units u2;
+      push1 (mod_checked i1 (int_of_real f2)) st0
+  | RpcFloatUnit (f1, u1), RpcInt i2 ->
+      reject_units u1;
+      push1 (mod_checked (int_of_real f1) i2) st0
   | RpcFloatUnit (f1, u1), RpcFloatUnit (f2, u2) ->
-      if has_units u1 || has_units u2 then
-        raise (Invalid_argument "cannot compute mod of dimensioned values")
-      else push1 (RpcFloatUnit (mod_float f1 f2, Units.empty_unit)) st0
-  | _ -> raise (Invalid_argument "mod requires integer or real arguments")
+      reject_units u1;
+      reject_units u2;
+      push1 (mod_checked (int_of_real f1) (int_of_real f2)) st0
+  | _ -> raise (Invalid_argument "mod can only be applied to arguments of type integer or real")
 
 let calc_floor st =
   check_args 1 "floor" st;
@@ -693,15 +814,22 @@ let calc_to_int st =
   check_args 1 "to_int" st;
   let el, st' = pop1_eval st in
   match el with
-  | RpcFloatUnit (f, u) -> push1 (RpcInt (big_int_of_string (string_of_float f))) st'
-  | _ -> raise (Invalid_argument "to_int requires real argument")
+  | RpcInt _ -> push1 el st'
+  | RpcFloatUnit (f, _) ->
+      if abs_float f < 1e9 then push1 (RpcInt (big_int_of_int (int_of_float f))) st'
+      else raise (Invalid_argument "value is too large to convert to integer")
+  | _ -> raise (Invalid_argument "to_int can only be applied to real data")
 
 let calc_to_float st =
   check_args 1 "to_float" st;
   let el, st' = pop1_eval st in
   match el with
   | RpcInt i -> push1 (RpcFloatUnit (float_of_big_int i, Units.empty_unit)) st'
-  | _ -> raise (Invalid_argument "to_float requires integer argument")
+  | RpcFloatMatrixUnit (m, u) ->
+      let rows, cols = Gsl.Matrix.dims m in
+      if rows = 1 && cols = 1 then push1 (RpcFloatUnit (m.{0, 0}, u)) st'
+      else raise (Invalid_argument "matrix argument of to_float must be 1x1")
+  | _ -> raise (Invalid_argument "to_float can only be applied to integer data")
 
 let calc_rand st =
   { (state_backup st) with stack = stack_push (RpcFloatUnit (Random.float 1.0, Units.empty_unit)) st.stack }
@@ -799,7 +927,7 @@ let calc_add st =
         let c2 = Gsl_assist.cmat_of_fmat m2 in
         let result = Gsl.Matrix_complex.copy m1 in
         Gsl.Matrix_complex.scale result conv;
-        Gsl.Matrix_complex.sub result c2;
+        Gsl.Matrix_complex.add result c2;
         push1 (RpcComplexMatrixUnit (result, u2)) st0
       else raise (Invalid_argument "incompatible matrix dimensions for addition")
   | RpcComplexMatrixUnit (m1, u1), RpcComplexMatrixUnit (m2, u2) ->
@@ -963,11 +1091,11 @@ let calc_mult st =
       push1 (RpcComplexMatrixUnit (result, u1)) st0
   | RpcComplexMatrixUnit (m1, u1), RpcFloatUnit (f2, u2) ->
       let result = Gsl.Matrix_complex.copy m1 in
-      Gsl.Matrix_complex.scale result Complex.one;
+      Gsl.Matrix_complex.scale result (c_of_f f2);
       push1 (RpcComplexMatrixUnit (result, Units.mult u1 u2)) st0
   | RpcComplexMatrixUnit (m1, u1), RpcComplexUnit (c2, u2) ->
       let result = Gsl.Matrix_complex.copy m1 in
-      Gsl.Matrix_complex.scale result Complex.one;
+      Gsl.Matrix_complex.scale result c2;
       push1 (RpcComplexMatrixUnit (result, Units.mult u1 u2)) st0
   | RpcComplexMatrixUnit (m1, u1), RpcFloatMatrixUnit (m2, u2) ->
       let n1, m1d = Gsl.Matrix_complex.dims m1 and n2, m2d = Gsl.Matrix.dims m2 in
@@ -1166,25 +1294,46 @@ let calc_pow st =
 let calc_gcd st =
   check_args 2 "gcd" st;
   let el1, el2, st0 = pop2_eval st in
-  match el1, el2 with
-  | RpcInt i1, RpcInt i2 ->
-      if sign_big_int i1 >= 0 && sign_big_int i2 >= 0 then
-        push1 (RpcInt (gcd_big_int i1 i2)) st0
-      else
-        raise (Invalid_argument "integer gcd requires nonnegative arguments")
-  | _ -> raise (Invalid_argument "gcd requires integer arguments")
+  let int_of_real f =
+    if abs_float f < 1e9 then big_int_of_int (int_of_float f)
+    else raise (Invalid_argument "real argument is too large to convert to integer")
+  in
+  let reject_units u =
+    if has_units u then raise (Invalid_argument "cannot compute gcd of dimensioned values")
+  in
+  let as_int = function
+    | RpcInt i -> abs_big_int i
+    | RpcFloatUnit (f, u) ->
+        reject_units u;
+        abs_big_int (int_of_real f)
+    | _ -> raise (Invalid_argument "gcd requires integer or real arguments")
+  in
+  let i1 = as_int el1 and i2 = as_int el2 in
+  push1 (RpcInt (gcd_big_int i1 i2)) st0
 
 let calc_lcm st =
   check_args 2 "lcm" st;
   let el1, el2, st0 = pop2_eval st in
-  match el1, el2 with
-  | RpcInt i1, RpcInt i2 ->
-      if sign_big_int i1 >= 0 && sign_big_int i2 >= 0 then
-        let lcm = abs_big_int (div_big_int (mult_big_int i1 i2) (gcd_big_int i1 i2)) in
-        push1 (RpcInt lcm) st0
-      else
-        raise (Invalid_argument "integer lcm requires nonnegative arguments")
-  | _ -> raise (Invalid_argument "lcm requires integer arguments")
+  let int_of_real f =
+    if abs_float f < 1e9 then big_int_of_int (int_of_float f)
+    else raise (Invalid_argument "real argument is too large to convert to integer")
+  in
+  let reject_units u =
+    if has_units u then raise (Invalid_argument "cannot compute lcm of dimensioned values")
+  in
+  let as_signed_int = function
+    | RpcInt i -> i
+    | RpcFloatUnit (f, u) ->
+        reject_units u;
+        int_of_real f
+    | _ -> raise (Invalid_argument "lcm requires integer or real arguments")
+  in
+  let i1 = as_signed_int el1 and i2 = as_signed_int el2 in
+  let gcd = gcd_big_int (abs_big_int i1) (abs_big_int i2) in
+  if eq_big_int gcd zero_big_int then
+    push1 (RpcInt zero_big_int) st0
+  else
+    push1 (RpcInt (div_big_int (mult_big_int i1 i2) gcd)) st0
 
 let calc_binom st =
   check_args 2 "binom" st;
@@ -1523,15 +1672,23 @@ let calc_utpn st =
 (**********************************************************************)
 
 let cmd_drop st =
-  if st.stack.len > 0 then
-    let _, s = stack_pop st.stack in
-    { st with stack = s }
-  else st
+  check_args 1 "drop" st;
+  let st = state_backup st in
+  let _, s = stack_pop st.stack in
+  { st with stack = s }
 
-let cmd_clear st = { st with stack = empty_stack }
+let cmd_clear st = { (state_backup st) with stack = empty_stack }
 
-let cmd_swap st = { st with stack = stack_swap st.stack }
-let cmd_dup st = { st with stack = stack_dup st.stack }
+let cmd_swap st =
+  check_args 2 "swap" st;
+  let st = state_backup st in
+  { st with stack = stack_swap st.stack }
+
+let cmd_dup st =
+  check_args 1 "dup" st;
+  let st = state_backup st in
+  { st with stack = stack_dup st.stack }
+
 let cmd_undo st = state_restore st
 
 (**********************************************************************)
@@ -1542,24 +1699,33 @@ let get_variables st = st.variables
 
 let cmd_store st =
   check_args 2 "store" st;
+  let st = state_backup st in
   let name_el, st1 = pop1 st in
   let value, st0 = pop1 st1 in
   match name_el with
   | RpcVariable vname ->
-      Hashtbl.replace st0.variables vname value;
-      st0
-  | _ -> raise (Invalid_argument "store requires variable name as first argument")
+      (match value with
+      | RpcVariable _ -> raise (Invalid_argument "cannot store variables inside variables")
+      | _ ->
+          Hashtbl.replace st0.variables vname value;
+          st0)
+  | _ -> raise (Invalid_argument "cannot store inside non-variable")
 
 let cmd_purge st =
   check_args 1 "purge" st;
+  let st = state_backup st in
   let name_el, st0 = pop1 st in
   match name_el with
   | RpcVariable vname ->
       Hashtbl.remove st0.variables vname;
       st0
-  | _ -> raise (Invalid_argument "purge requires variable name")
+  | _ -> raise (Invalid_argument "only variables can be purged")
 
-let cmd_eval st = eval1 st
+let cmd_eval st =
+  check_args 1 "eval" st;
+  match stack_peek 1 st.stack with
+  | RpcVariable _ -> eval1 (state_backup st)
+  | _ -> st
 
 (**********************************************************************)
 (* RENDERING                                                          *)
