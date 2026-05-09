@@ -8,17 +8,17 @@ let get_mode_str calc =
     (match m.complex with Rect -> "RECT" | Polar -> "POLAR")
 
 let classic_view model =
-  let is_wide = model.width >= 80 in
+  let view_width = 80 in
   let max_stack_lines = max 1 (model.height - 2) in
-  let left_width = if is_wide then 38 else 0 in
-  let stack_width = model.width - left_width in
+  let left_width = 38 in
+  let stack_width = view_width - left_width in
   
   let stack_lines =
     List.init max_stack_lines (fun i ->
       let idx = max_stack_lines - i in
       let line = Pelzl_engine.get_display_line idx model.calc in
       let num_str = Printf.sprintf "%2d:" idx in
-      let bar = if is_wide then "| " else "" in
+      let bar = "| " in
       let prefix = bar ^ num_str in
       if line = "" then
         prefix
@@ -64,18 +64,14 @@ let classic_view model =
   in
   let right_pane =
     Mosaic.box ~display:Mosaic.Display.Block
-      ~size:(Mosaic.size_wh (if is_wide then Mosaic.px stack_width else Mosaic.pct 100) (Mosaic.pct 100))
+      ~size:(Mosaic.size_wh (Mosaic.px stack_width) (Mosaic.pct 100))
       [ Mosaic.text stack_text ]
   in
   let main_area =
-    if is_wide then
-      Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row
-        ~flex_grow:1. [ left_pane; right_pane ]
-    else
-      Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row
-        ~flex_grow:1. [ right_pane ]
+    Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row
+      ~flex_grow:1. [ left_pane; right_pane ]
   in
-  let divider_text = String.make model.width '-' in
+  let divider_text = String.make view_width '-' in
   let entry_line =
     match model.error_msg with
     | Some msg ->
@@ -89,14 +85,20 @@ let classic_view model =
             Mosaic.text model.entry;
             Mosaic.text ~style:cursor_style " " ]
   in
-  Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Column
+  let ui_content =
+    Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Column
+      ~size:(Mosaic.size_wh (Mosaic.px view_width) (Mosaic.pct 100))
+      [ main_area;
+        Mosaic.box ~display:Mosaic.Display.Block
+          ~size:(Mosaic.size_wh (Mosaic.px view_width) (Mosaic.px 2))
+          [ Mosaic.text divider_text;
+            entry_line ]
+      ]
+  in
+  Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row
     ~size:(Mosaic.size_wh (Mosaic.pct 100) (Mosaic.pct 100))
-    [ main_area;
-      Mosaic.box ~display:Mosaic.Display.Block
-        ~size:(Mosaic.size_wh (Mosaic.pct 100) (Mosaic.px 2))
-        [ Mosaic.text divider_text;
-          entry_line ]
-    ]
+    [ ui_content;
+      Mosaic.box ~flex_grow:1. [] ]
 
 let modern_view model =
   let max_stack_lines = max 1 (model.height - 4) in
