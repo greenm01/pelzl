@@ -18,12 +18,12 @@ jobs:
     - name: Set up OCaml
       uses: ocaml/setup-ocaml@v3
       with:
-        ocaml-compiler: 4.14.2
+        ocaml-compiler: 5.4.0
 
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y libgsl-dev libncurses-dev camlp5 m4
+        sudo apt-get install -y libgsl-dev camlp5 m4
 
     - name: Install OCaml dependencies
       run: opam install . --deps-only --with-test -y
@@ -33,7 +33,7 @@ jobs:
 
     - name: Prepare artifact
       run: |
-        cp _build/default/src/pelzl/main.exe pelzl
+        cp _build/default/src/pelzl.exe pelzl
         chmod +x pelzl
         strip pelzl
 

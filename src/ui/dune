@@ -1,0 +1,6 @@
+; Pelzl UI library
+(library
+ (name pelzl_ui)
+ (wrapped false)
+ (flags (:standard -w -27-35-52 -thread -alert -deprecated))
+ (libraries pelzl_core mosaic gsl num str threads camlp-streams))

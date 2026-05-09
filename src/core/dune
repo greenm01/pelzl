@@ -2,8 +2,8 @@
  (name pelzl_core)
  (public_name pelzl.core)
  (wrapped false)
- (flags (:standard -w -27-35-52 -thread -alert -deprecated))
- (libraries curses gsl num str threads camlp-streams))
+ (flags (:standard -w -8-27-32-35-52 -thread -alert -deprecated))
+ (libraries gsl num str threads camlp-streams))
 
 ; Use pelzl.opam as the authoritative source of version number
 (rule

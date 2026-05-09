@@ -1,13 +1,5 @@
 (executable
  (name pelzl_exe)
  (public_name pelzl)
- (modules pelzl_exe modern_ui)
  (flags (:standard -w -27-35-52 -thread -alert -deprecated))
- (libraries pelzl_classic pelzl_core mosaic curses gsl num str threads camlp-streams))
-
-(executable
- (name pelzl_legacy_exe)
- (public_name pelzl_legacy)
- (modules pelzl_legacy_exe modern_ui)
- (flags (:standard -w -27-35-52 -thread -alert -deprecated))
- (libraries pelzl_classic pelzl_core mosaic curses gsl num str threads camlp-streams))
+ (libraries pelzl_ui pelzl_core mosaic gsl num str threads camlp-streams))

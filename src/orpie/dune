@@ -1,7 +1,0 @@
-; Pelzl classic UI library
-(library
- (name pelzl_classic)
- (wrapped false)
- (flags (:standard -w -27-35-52 -thread -alert -deprecated))
- (libraries curses gsl num str threads pelzl_core camlp-streams))
-

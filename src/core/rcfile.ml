@@ -1,39 +1,23 @@
 (*  Pelzl -- a modern RPN calculator for the console
  *  Copyright (C) 2003-2004, 2005, 2006-2007, 2010, 2018 Paul Pelzl
+ *  Copyright (C) 2026 Mason Austin Green
  *
  *  This program is free software; you can redistribute it and/or modify
-*  Copyright (C) 2026 Mason Austin Green
  *  it under the terms of the GNU General Public License, Version 3,
  *  as published by the Free Software Foundation.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
- *  Please send bug reports, patches, etc. to Paul Pelzl at
- *  <pelzlpj@gmail.com>.
  *)
 
 (* rcfile.ml
- * This file includes everything associated with processing the pelzlrc file.
- * In particular, this includes a number of hashtables used to store the
- * bindings of curses keypresses to calculator operations. *)
+ * Configuration file processing for Pelzl. *)
 
 open Genlex;;
-open Curses;;
 open Operations;;
-
+open Pelzl_engine;;
 
 exception Config_failure of string;;
 let config_failwith s = raise (Config_failure s);;
 
-
-(* These hashtables store conversions between curses keys and the operations
- * they are associated with. *)
+(* These hashtables store conversions between key bindings and operations. *)
 let table_key_function = Hashtbl.create 20;;
 let table_function_key = Hashtbl.create 20;;
 let table_key_command  = Hashtbl.create 20;;
@@ -50,7 +34,6 @@ let table_key_macro    = Hashtbl.create 20;;
 let table_key_varedit  = Hashtbl.create 20;;
 let table_varedit_key  = Hashtbl.create 20;;
 
-
 (* Default directory for pelzl data *)
 let datadir = ref "~/.pelzl"
 (* Default editor for fullscreen viewing *)
@@ -60,12 +43,12 @@ let hide_help = ref false;;
 (* Whether or not to conserve memory in favor of faster display *)
 let conserve_memory = ref false;;
 (* Autobinding keys *)
-let autobind_keys_list : (int * string * operation_t option * int) list ref = ref [];;
-let autobind_keys = ref (Array.make 1 (0, "", None, 0));;
+let autobind_keys_list : (key_binding * string * operation_t option * int) list ref = ref [];;
+let autobind_keys = ref (Array.make 1 ({ key = Key_char (Uchar.of_char ' '); ctrl = false; meta = false }, "", None, 0));;
 (* List of included rc files *)
 let included_rcfiles : (string list) ref = ref [];;
 (* Unit definition table *)
-let unit_table = ref Units.empty_unit_table;;
+
 
 
 let function_of_key key =
@@ -116,16 +99,8 @@ let abbrev_commands = ref [];;
 let abbrev_command_table = Hashtbl.create 50;;
 let command_abbrev_table = Hashtbl.create 50;;
 
-(* Register an abbreviation for an operation
- * This updates the string used in regexp matching, and
- * updates the hashtable used to find the corresponding operation. 
- * Note: this list is generated in reverse order, so that
- * the list of matches can be generated rapidly in the opposite
- * order. *)
+(* Register an abbreviation for an operation *)
 let register_abbrev abbr op =
-   (* Dummyproofing: if an abbreviation is a prefix of another
-    * abbreviation, then it *must* lie earlier in the search order.
-    * If not, it becomes impossible to execute the prefix command. *)
    let regex = Str.regexp_string abbr in
    let check_match (prev_result : bool) el =
       if prev_result then
@@ -134,32 +109,19 @@ let register_abbrev abbr op =
          Str.string_match regex el 0
    in
    if List.fold_left check_match false !abbrev_commands then
-      (* if abbr is a prefix of some element, then it must
-       * go at the end of the list *)
       abbrev_commands := !abbrev_commands @ [abbr]
    else
-      (* if it has no prefix, then prepend it *)
       abbrev_commands := abbr :: !abbrev_commands;
    Hashtbl.add abbrev_command_table abbr op;
    Hashtbl.add command_abbrev_table op abbr;;
-   
 
 
 (* tables used in for constant entry *)
 let constant_symbols = ref [];;
 let constants_table = Hashtbl.create 50;;
 
-
-(* Register a constant string.
- * This updates the string used in regexp matching, and
- * adds the constant definition to a lookup table.
- * Note: this list is generated in reverse order, so that
- * the list of matches can be generated rapidly in the opposite
- * order. *)
+(* Register a constant string. *)
 let register_constant (const : string) (unit_def : Units.unit_def_t) =
-   (* Dummyproofing: if a constant is a prefix of another
-    * constant, then it *must* lie earlier in the search order.
-    * If not, it becomes impossible to execute the prefix command. *)
    let regex = Str.regexp_string const in
    let check_match (prev_result : bool) el =
       if prev_result then
@@ -168,11 +130,8 @@ let register_constant (const : string) (unit_def : Units.unit_def_t) =
          Str.string_match regex el 0
    in
    if List.fold_left check_match false !constant_symbols then
-      (* if const is a prefix of some element, then it must
-       * go at the end of the list *)
       constant_symbols := !constant_symbols @ [const]
    else
-      (* if it has no prefix, then prepend it *)
       constant_symbols := const :: !constant_symbols;
    Hashtbl.add constants_table const unit_def;;
 
@@ -183,8 +142,8 @@ let unregister_abbrev abbr =
       if el = abbr then out_list
       else el :: out_list
    in
-   let sublist = 
-      List.fold_left remove_matching [] !abbrev_commands 
+   let sublist =
+      List.fold_left remove_matching [] !abbrev_commands
    in
    abbrev_commands := List.rev sublist;
    try
@@ -204,103 +163,15 @@ let translate_constant const =
 
 
 let decode_single_key_string key_string =
-   let decode_alias str =
-      match str with
-      |"<esc>" -> 27
-      |"<tab>" -> 9
-      |"<enter>" -> Key.enter
-      |"<return>" -> 10
-      |"<insert>" -> Key.ic
-      |"<delete>" -> Key.dc
-      |"<home>" -> Key.home
-      |"<end>" -> Key.end_
-      |"<pageup>" -> Key.ppage
-      |"<pagedown>" -> Key.npage
-      |"<space>" -> 32
-      |"<backspace>" -> Key.backspace
-      |"<left>" -> Key.left
-      |"<right>" -> Key.right
-      |"<up>" -> Key.up
-      |"<down>" -> Key.down
-      |"<f1>" -> (Key.f 1)
-      |"<f2>" -> (Key.f 2)
-      |"<f3>" -> (Key.f 3)
-      |"<f4>" -> (Key.f 4)
-      |"<f5>" -> (Key.f 5)
-      |"<f6>" -> (Key.f 6)
-      |"<f7>" -> (Key.f 7)
-      |"<f8>" -> (Key.f 8)
-      |"<f9>" -> (Key.f 9)
-      |"<f10>" -> (Key.f 10)
-      |"<f11>" -> (Key.f 11)
-      |"<f12>" -> (Key.f 12)
-      |_ -> 
-         if String.length key_string = 1 then
-            int_of_char str.[0]
-         else
-            config_failwith ("Unrecognized key \"" ^ str ^ "\"")
-   in
-   (* This regexp is used to extract the ctrl and meta characters from a string
-    * representing a keypress.
-    * It matches \\M\\C or \\C\\M or \\C or \\M (or no such characters) followed
-    * by an arbitrary string. *)
-   (* Note: is there a way to use raw strings here?  Getting tired of those
-    * backslashes...*)
-   let cm_re = Str.regexp
-   "^\\(\\(\\\\M\\\\C\\|\\\\C\\\\M\\)\\|\\(\\\\M\\)\\|\\(\\\\C\\)\\)?\\(<.+>\\|.\\)"
-   in
-   if Str.string_match cm_re key_string 0 then
-      let has_meta_ctrl =
-         try let _ = Str.matched_group 2 key_string in true
-         with Not_found -> false
-      and has_meta =
-         try let _  = Str.matched_group 3 key_string in true
-         with Not_found -> false
-      and has_ctrl =
-         try let _ = Str.matched_group 4 key_string in true
-         with Not_found -> false
-      and main_key = Str.matched_group 5 key_string in
-      if has_meta_ctrl then
-         if String.length main_key = 1 then
-            let uc_main_key = String.uppercase_ascii main_key in
-            let mc_chtype = ((int_of_char uc_main_key.[0]) + 64) in
-            let mc_str = "M-C-" ^ uc_main_key in
-            (mc_chtype, mc_str)
-         else
-            config_failwith ("Cannot apply \\\\M\\\\C to key \"" ^ main_key ^ "\";\n" ^
-                       "octal notation might let you accomplish this.")
-      else if has_meta then
-         if String.length main_key = 1 then
-            let m_chtype = ((int_of_char main_key.[0]) + 128) in
-            let m_str = "M-" ^ main_key in
-            (m_chtype, m_str)
-         else
-            config_failwith ("Cannot apply \\\\M to key \"" ^ main_key ^ "\";\n" ^
-                       "octal notation might let you accomplish this.")
-      else if has_ctrl then
-         if String.length main_key = 1 then
-            let uc_main_key = String.uppercase_ascii main_key in
-            let c_chtype = ((int_of_char uc_main_key.[0]) - 64) in
-            let c_str = "C-" ^ uc_main_key in
-            (c_chtype, c_str)
-         else
-            config_failwith ("Cannot apply \\\\C to key \"" ^ main_key ^ "\";\n" ^
-                       "octal notation might let you accomplish this.")
-      else 
-         let octal_regex = Str.regexp "^0o" in
-         try
-            let _ = Str.search_forward octal_regex key_string 0 in
-            ((int_of_string key_string), ("\\" ^ Str.string_after key_string
-            2))
-         with
-            _ -> ((decode_alias main_key), main_key)
-   else
-      config_failwith ("Unable to match binding string with standard regular expression.")
+   try
+      let kb = Pelzl_engine.decode_single_key_string key_string in
+      let str = Pelzl_engine.string_of_key_binding kb in
+      (kb, str)
+   with Invalid_argument s ->
+      config_failwith s
 
 
-
-(* Register a key binding.  This adds hash table entries for translation
- * between curses chtypes and commands (in both directions). *)
+(* Register a key binding. *)
 let register_binding_internal k k_string op =
    match op with
    |Function x ->
@@ -326,10 +197,7 @@ let register_binding_internal k k_string op =
       Hashtbl.add table_varedit_key x k_string
 
 
-(* convenience routine for previous *)
 let register_binding key_string op =
-   (* given a string that represents a character, find the associated
-    * curses chtype *)
    let k, string_rep = decode_single_key_string key_string in
    register_binding_internal k string_rep op
 
@@ -390,8 +258,6 @@ let unregister_varedit_binding key_string =
       Hashtbl.remove table_key_varedit k;
       Hashtbl.remove table_varedit_key op
    with Not_found -> ()
-   
-
 
 
 (* Remove a key binding. *)
@@ -420,19 +286,16 @@ let remove_binding k op =
       Hashtbl.remove table_varedit_key x
 
 
-(* Register a macro.  This parses the macro string and divides it into multiple
- * whitespace-separated keypresses, then stores the list of keypresses in the
- * appropriate hashtable. *)
+(* Register a macro. *)
 let register_macro key keys_string =
-   let macro_ch = fst (decode_single_key_string key) in
+   let macro_kb, _ = decode_single_key_string key in
    let split_regex = Str.regexp "[ \t]+" in
    let keys_list = Str.split split_regex keys_string in
-   let ch_of_key_string k_string =
+   let kb_of_key_string k_string =
       fst (decode_single_key_string k_string)
    in
-   let ch_list = List.rev_map ch_of_key_string keys_list in
-   Hashtbl.add table_key_macro macro_ch ch_list
-      
+   let kb_list = List.rev_map kb_of_key_string keys_list in
+   Hashtbl.add table_key_macro macro_kb kb_list
 
 
 (* translate a command string to the command type it represents *)
@@ -545,8 +408,6 @@ let operation_of_string command_str =
    |"browse_prev_line"              -> (Browse PrevLine)
    |"browse_next_line"              -> (Browse NextLine)
    |"browse_echo"                   -> (Browse Echo)
-   |"browse_rolldown"               -> (Browse RollDown)
-   |"browse_rollup"                 -> (Browse RollUp)
    |"browse_view"                   -> (Browse ViewEntry)
    |"browse_drop"                   -> (Browse Drop1)
    |"browse_dropn"                  -> (Browse DropN)
@@ -561,7 +422,7 @@ let operation_of_string command_str =
    |"variable_enter"                -> (VarEdit VarEditEnter)
    |"variable_backspace"            -> (VarEdit VarEditBackspace)
    |"variable_complete"             -> (VarEdit VarEditComplete)
-   |"function_rand"                 -> config_failwith 
+   |"function_rand"                 -> config_failwith
                                        "operation \"function_rand\" is deprecated; please replace with \"command_rand\"."
    |"command_begin_extended"        -> config_failwith
                                        "operation \"command_begin_extended\" is deprecated; please replace with \"command_begin_abbrev\"."
@@ -575,17 +436,8 @@ let operation_of_string command_str =
    end
 
 
-
-(* Parse a line from an Pelzl configuration file.  This operates on a stream
- * corresponding to a non-empty line from the file.  It will match commands
- * of the form
- *    bind key command
- *    macro key multiple_keys
- * where 'key' is either a quoted string containing a key specifier or an octal
- * key representation of the form \xxx (unquoted), and multiple_keys is a quoted
- * string containing a number of keypresses to simulate.
- *)
-let parse_line line_stream = 
+(* Parse a line from a Pelzl configuration file. *)
+let parse_line line_stream =
    match Stream.peek line_stream with
    | Some (Kwd "include") ->
       Stream.junk line_stream;
@@ -596,9 +448,9 @@ let parse_line line_stream =
       | _ ->
          config_failwith ("Expected a filename string after \"include\"")
       end
-   | Some (Kwd "bind") -> 
+   | Some (Kwd "bind") ->
       Stream.junk line_stream;
-      let bind_key key = 
+      let bind_key key =
          begin match Stream.peek line_stream with
          | Some (Ident command_str) ->
             Stream.junk line_stream;
@@ -609,7 +461,7 @@ let parse_line line_stream =
          end
       in
       begin match Stream.peek line_stream with
-      | Some (String k) -> 
+      | Some (String k) ->
          Stream.junk line_stream;
          bind_key k
       | Some (Ident "\\") ->
@@ -620,8 +472,8 @@ let parse_line line_stream =
             begin
                try
                   let octal_digits = "0o" ^ (string_of_int octal_int) in
-                  bind_key octal_digits 
-               with 
+                  bind_key octal_digits
+               with
                   (Failure "int_of_string") -> config_failwith "Expected octal digits after \"\\\""
             end
          | _  ->
@@ -696,7 +548,7 @@ let parse_line line_stream =
    | Some (Kwd "autobind") ->
       Stream.junk line_stream;
       begin match Stream.peek line_stream with
-      | Some (String k) -> 
+      | Some (String k) ->
          Stream.junk line_stream;
          let key, key_string = decode_single_key_string k in
          autobind_keys_list := (key, key_string, None, 1) :: !autobind_keys_list
@@ -710,7 +562,7 @@ let parse_line line_stream =
                   let octal_digits = "0o" ^ (string_of_int octal_int) in
                   let key, key_string = decode_single_key_string octal_digits in
                   autobind_keys_list := (key, key_string, None, 1) :: !autobind_keys_list
-               with 
+               with
                   (Failure "int_of_string") -> config_failwith "Expected octal digits after \"\\\""
             end
          | _  ->
@@ -786,8 +638,7 @@ let parse_line line_stream =
             begin match Stream.peek line_stream with
             | Some (String executable) ->
                Stream.junk line_stream;
-               ( (* Printf.fprintf stderr "using editor \"%s\"\n" executable; *)
-               editor := executable)
+               editor := executable
             | _ ->
                config_failwith ("Expected an executable filename string after " ^
                "\"set editor = \"")
@@ -852,9 +703,9 @@ let parse_line line_stream =
             Stream.junk line_stream;
             begin try
                let prefix = Units.prefix_of_string prefix_s in
-               unit_table := Units.add_base_unit base_u prefix !unit_table
+               Units.unit_table := Units.add_base_unit base_u prefix !Units.unit_table
             with Not_found ->
-               config_failwith 
+               config_failwith
                ("Expected an SI prefix string (or null string) after: base_unit \"" ^
                base_u ^ "\"")
             end
@@ -873,8 +724,8 @@ let parse_line line_stream =
          | Some (String unit_def_str) ->
             Stream.junk line_stream;
             begin try
-               let unit_def = Units.unit_def_of_string unit_def_str !unit_table in
-               unit_table := Units.add_unit unit_str unit_def !unit_table
+               let unit_def = Units.unit_def_of_string unit_def_str !Units.unit_table in
+               Units.unit_table := Units.add_unit unit_str unit_def !Units.unit_table
             with Units.Units_error s ->
                config_failwith ("Illegal unit definition: unit \"" ^
                unit_str ^ "\" \"" ^ unit_def_str ^ "\"; " ^ s)
@@ -894,7 +745,7 @@ let parse_line line_stream =
          | Some (String unit_def_str) ->
             Stream.junk line_stream;
             begin try
-               let unit_def = Units.unit_def_of_string unit_def_str !unit_table in
+               let unit_def = Units.unit_def_of_string unit_def_str !Units.unit_table in
                register_constant const_str unit_def
             with Units.Units_error s ->
                config_failwith ("Illegal constant definition: constant \"" ^
@@ -917,7 +768,7 @@ let parse_line line_stream =
 (* obtain a valid autobinding array, eliminating duplicate keys *)
 let generate_autobind_array () =
    let candidates = Array.of_list (List.rev !autobind_keys_list) in
-   let temp_arr = Array.make (Array.length candidates) (0, "", None, 0) in
+   let temp_arr = Array.make (Array.length candidates) ({ key = Key_char (Uchar.of_char ' '); ctrl = false; meta = false }, "", None, 0) in
    let pointer = ref 0 in
    for i = 0 to pred (Array.length candidates) do
       let (c_k, c_ss, c_bound_f, c_age) = candidates.(i) in
@@ -933,7 +784,6 @@ let generate_autobind_array () =
          ()
    done;
    autobind_keys := Array.sub temp_arr 0 !pointer
-
 
 
 
@@ -954,12 +804,8 @@ let validate_saved_autobindings saved_autobind =
                   let _ = abbrev_of_operation op in ()
                end
             with Not_found ->
-               (* if the function has no associated abbreviation, then consider
-                * the saved autobindings to be flawed *)
                is_valid := false
          end else
-            (* if the autobindings are different from the saved set, then
-             * consider the saved set to be flawed. *)
             is_valid := false
       done;
       if !is_valid then begin
@@ -974,10 +820,9 @@ let validate_saved_autobindings saved_autobind =
          ()
    else
       ()
-             
 
 
-(* try opening the rc file, first looking at $HOME/.pelzlrc, 
+(* try opening the rc file, first looking at $HOME/.pelzlrc,
  * then looking at $PREFIX/etc/pelzlrc *)
 let open_rcfile rcfile_op =
    match rcfile_op with
@@ -986,19 +831,17 @@ let open_rcfile rcfile_op =
          let homedir = Sys.getenv "HOME" in
          homedir ^ "/.pelzlrc"
       in
-      let rcfile_fullpath = 
-         (* expand out any occurrences of ${prefix} that autoconf
-          * decides to insert *)
+      let rcfile_fullpath =
          let prefix_regex = Str.regexp "\\${prefix}" in
-         let expanded_sysconfdir = Str.global_replace prefix_regex 
+         let expanded_sysconfdir = Str.global_replace prefix_regex
          Install.prefix Install.sysconfdir in
          Utility.join_path expanded_sysconfdir "pelzlrc"
       in
       begin try (open_in home_rcfile, home_rcfile)
       with Sys_error error_str ->
          begin try (open_in rcfile_fullpath, rcfile_fullpath)
-         with Sys_error error_str -> failwith 
-            ("Could not open configuration file \"" ^ home_rcfile ^ "\" or \"" ^ 
+         with Sys_error error_str -> failwith
+            ("Could not open configuration file \"" ^ home_rcfile ^ "\" or \"" ^
             rcfile_fullpath ^ "\" .")
          end
       end
@@ -1008,14 +851,13 @@ let open_rcfile rcfile_op =
       ("Could not open configuration file \"" ^ file ^ "\".")
 
 
-
 let rec process_rcfile rcfile_op =
-   let line_lexer line = 
-      make_lexer 
+   let line_lexer line =
+      make_lexer
          ["include"; "bind"; "unbind_function"; "unbind_command";
          "unbind_edit"; "unbind_browse"; "unbind_abbrev"; "unbind_integer";
-         "unbind_variable"; "autobind"; "abbrev"; "unabbrev"; "macro"; "set"; 
-         "base_unit"; "unit"; "constant"; "#"] 
+         "unbind_variable"; "autobind"; "abbrev"; "unabbrev"; "macro"; "set";
+         "base_unit"; "unit"; "constant"; "#"]
       (Stream.of_string line)
    in
    let empty_regexp = Str.regexp "^[\t ]*$" in
@@ -1025,19 +867,15 @@ let rec process_rcfile rcfile_op =
       while true do
          line_num := succ !line_num;
          let line_string = input_line config_stream in
-         (* Printf.fprintf stderr "read line %2d: %s\n" !line_num line_string;
-         flush stderr; *)
          if Str.string_match empty_regexp line_string 0 then
-            (* do nothing on an empty line *)
             ()
          else
             try
                let line_stream = line_lexer line_string in
                parse_line line_stream;
-               (* process any included rcfiles as they are encountered *)
                begin match !included_rcfiles with
                |[] -> ()
-               |head :: tail -> 
+               |head :: tail ->
                   included_rcfiles := tail;
                   process_rcfile (Some head)
                end
@@ -1047,7 +885,7 @@ let rec process_rcfile rcfile_op =
                   !line_num rcfile_filename s in
                   failwith error_str)
                |Stream.Failure ->
-                  failwith (Printf.sprintf "Syntax error on line %d of \"%s\"" 
+                  failwith (Printf.sprintf "Syntax error on line %d of \"%s\""
                   !line_num rcfile_filename)
 
       done
@@ -1056,8 +894,3 @@ let rec process_rcfile rcfile_op =
          close_in config_stream;
          generate_autobind_array ()
       end
-
-
-
-
-(* arch-tag: DO_NOT_CHANGE_614115ed-7d1d-4834-bda4-e6cf93ac3fcd *)

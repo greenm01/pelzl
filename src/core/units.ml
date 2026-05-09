@@ -500,4 +500,5 @@ let div (a : unit_set_t) (b : unit_set_t) =
    in
    SMap.fold div_aux b a
 
+let unit_table = ref empty_unit_table
 

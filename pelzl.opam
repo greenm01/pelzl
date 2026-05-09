@@ -11,13 +11,13 @@ build: ["dune" "build" "-p" "pelzl"]
 depends: [
   "ocaml" {>= "5.4.0"}
   "dune" {>= "3.0"}
-  "curses" {>= "1.0.3"}
   "gsl" {>= "1.22.0"}
   "num"
   "mosaic"
+  "alcotest" {with-test}
 ]
-synopsis: "Curses-based RPN calculator"
+synopsis: "Terminal RPN calculator"
 description: """
-Orpie is a curses-based RPN calculator for the terminal.  It supports a
-large chunk of the features supported by classic HP RPN calculators, but
-the user interface is optimized for a keyboard."""
+Pelzl is a terminal RPN calculator. It supports a large chunk of the
+features supported by classic HP RPN calculators, with a keyboard-optimized
+user interface built on the Mosaic terminal UI framework."""

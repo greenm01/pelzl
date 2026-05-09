@@ -59,11 +59,11 @@ let decode_float_complex_matrix mat u_str =
          end
    done;
    if !has_complex then
-      Rpc_stack.RpcComplexMatrixUnit (Gsl.Matrix_complex.of_arrays cpx_array,
-      Units.units_of_string (Str.string_after u_str 1) !Rcfile.unit_table)
+      Pelzl_engine.RpcComplexMatrixUnit (Gsl.Matrix_complex.of_arrays cpx_array,
+      Units.units_of_string (Str.string_after u_str 1) !Units.unit_table)
    else
-      Rpc_stack.RpcFloatMatrixUnit (Gsl.Matrix.of_arrays flt_array,
-      Units.units_of_string (Str.string_after u_str 1) !Rcfile.unit_table)
+      Pelzl_engine.RpcFloatMatrixUnit (Gsl.Matrix.of_arrays flt_array,
+      Units.units_of_string (Str.string_after u_str 1) !Units.unit_table)
 
 
 let rect_of_polar_rad r theta = 
@@ -95,21 +95,21 @@ let decode_integer i_str =
         let base_string = String.make 1 base_char in
         raise (Utility.Txtin_error ("illegal base character " ^ base_string))
    in
-   Rpc_stack.RpcInt int_val
+   Pelzl_engine.RpcInt int_val
 
 
 (* convert a floating point string and a unit string to an RpcFloatUnit *)
 let decode_float_units f_str u_str =
-   Rpc_stack.RpcFloatUnit ((float_of_string f_str),
-      Units.units_of_string (Str.string_after u_str 1) !Rcfile.unit_table)
+   Pelzl_engine.RpcFloatUnit ((float_of_string f_str),
+      Units.units_of_string (Str.string_after u_str 1) !Units.unit_table)
 
 (* convert a cartesian complex number string and a unit string to an 
  * RpcComplexUnit *)
 let decode_complex_rect_units re_str im_str u_str =
    let f1 = float_of_string re_str
    and f2 = float_of_string im_str in
-   Rpc_stack.RpcComplexUnit ({Complex.re = f1; Complex.im = f2},
-   Units.units_of_string (Str.string_after u_str 1) !Rcfile.unit_table)
+   Pelzl_engine.RpcComplexUnit ({Complex.re = f1; Complex.im = f2},
+   Units.units_of_string (Str.string_after u_str 1) !Units.unit_table)
 
 (* convert a polar representation complex number string to an
  * RpcComplex.  The rect_of_polar argument should take care of
@@ -117,8 +117,8 @@ let decode_complex_rect_units re_str im_str u_str =
 let decode_complex_polar_units rect_of_polar mag_str ang_str u_str = 
    let mag = float_of_string mag_str
    and ang = float_of_string ang_str in
-   Rpc_stack.RpcComplexUnit ((rect_of_polar mag ang),
-   Units.units_of_string (Str.string_after u_str 1) !Rcfile.unit_table)
+   Pelzl_engine.RpcComplexUnit ((rect_of_polar mag ang),
+   Units.units_of_string (Str.string_after u_str 1) !Units.unit_table)
 
 (* convert a polar representation complex number string to an
  * RpcComplex.  Assumes radian representation of the angle. *)
@@ -150,7 +150,7 @@ let decode_matrix_units mat_rows u_str =
 
 (* convert a variable string to an RpcVariable *)
 let decode_variable v_str =
-   Rpc_stack.RpcVariable v_str
+   Pelzl_engine.RpcVariable v_str
 %}
 
 
@@ -170,12 +170,12 @@ let decode_variable v_str =
 /* parse the input under the assumption that angles
  * are provided using radian measure */
 %start decode_data_rad
-%type <Rpc_stack.pelzl_data_t list> decode_data_rad
+%type <Pelzl_engine.pelzl_data_t list> decode_data_rad
 
 /* parse the input under the assumption that angles
  * are provided using degree measure */
 %start decode_data_deg
-%type <Rpc_stack.pelzl_data_t list> decode_data_deg
+%type <Pelzl_engine.pelzl_data_t list> decode_data_deg
 
 %%
 /* rules */
