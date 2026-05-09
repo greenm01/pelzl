@@ -81,16 +81,18 @@ let classic_view model =
     | Some msg -> Mosaic.text msg
     | None ->
         let cursor_style = Mosaic.Ansi.Style.make ~inverse:true () in
+        let pad_len = max 0 (model.width - String.length model.entry - 1) in
+        let pad = String.make pad_len ' ' in
         Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row
-          [ Mosaic.text "> ";
+          [ Mosaic.text pad;
             Mosaic.text model.entry;
             Mosaic.text ~style:cursor_style " " ]
   in
   Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Column
-    ~size:(Mosaic.size_wh (Mosaic.pct 100) (Mosaic.pct 100))
+    ~size:(Mosaic.size_wh (Mosaic.px model.width) (Mosaic.pct 100))
     [ main_area;
       Mosaic.box ~display:Mosaic.Display.Block
-        ~size:(Mosaic.size_wh (Mosaic.pct 100) (Mosaic.px 2))
+        ~size:(Mosaic.size_wh (Mosaic.px model.width) (Mosaic.px 2))
         [ Mosaic.text divider_text;
           entry_line ]
     ]
