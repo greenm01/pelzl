@@ -134,7 +134,7 @@ let repl_view model =
   let history_text = String.concat "\n" (List.map (fun s -> " \u{2192} " ^ s) history_lines) in
   let history_pane =
     Mosaic.box ~display:Mosaic.Display.Block ~flex_grow:1.
-      [ Mosaic.text ~style:style_white "TRACE LOG\n---------\n";
+      [ Mosaic.text ~style:style_white "HISTORY\n-------\n";
         Mosaic.text ~style:style_yellow history_text ]
   in
 
