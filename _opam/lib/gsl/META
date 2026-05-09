@@ -1,7 +1,0 @@
-version = "1.25.1"
-description = ""
-requires = "bigarray"
-archive(byte) = "gsl.cma"
-archive(native) = "gsl.cmxa"
-plugin(byte) = "gsl.cma"
-plugin(native) = "gsl.cmxs"

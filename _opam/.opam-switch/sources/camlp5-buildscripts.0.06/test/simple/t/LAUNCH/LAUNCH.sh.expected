@@ -1,9 +1,0 @@
-================
-Failure("LAUNCH: environment variable TOP *must* be set to use this wrapper")
-expect-this
-================
-foo
-================
-bar
-================
-DONE

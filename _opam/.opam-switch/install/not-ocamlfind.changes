@@ -1,7 +1,0 @@
-opam-version: "2.0"
-added: [
-  "bin/not-ocamlfind" {"F:S1069500T1778334711.66"}
-  "lib/not-ocamlfind" {"D"}
-  "lib/not-ocamlfind/META" {"F:S138T1778334710.69"}
-  "lib/not-ocamlfind/papr_official.exe" {"F:S3089883T1778334711.63"}
-]

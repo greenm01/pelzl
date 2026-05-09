@@ -9,12 +9,12 @@ license: "GPL-3.0-only"
 dev-repo: "git+https://github.com/pelzlpj/orpie.git"
 build: ["dune" "build" "-p" "orpie"]
 depends: [
-  "ocaml" {>= "4.03.0"}
-  "camlp5" {build}
+  "ocaml" {>= "5.4.0"}
   "dune" {>= "3.0"}
   "curses" {>= "1.0.3"}
   "gsl" {>= "1.22.0"}
   "num"
+  "mosaic"
 ]
 synopsis: "Curses-based RPN calculator"
 description: """

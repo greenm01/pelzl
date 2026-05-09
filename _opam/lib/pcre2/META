@@ -1,6 +1,0 @@
-description = ""
-requires = ""
-archive(byte) = "pcre2.cma"
-archive(native) = "pcre2.cmxa"
-plugin(byte) = "pcre2.cma"
-plugin(native) = "pcre2.cmxs"

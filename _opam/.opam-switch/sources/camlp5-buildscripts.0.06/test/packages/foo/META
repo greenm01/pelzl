@@ -1,4 +1,0 @@
-description = "haha"
-requires = ""
-archive(byte) = "foo.cmo"
-archive(native) = "foo.cmx"

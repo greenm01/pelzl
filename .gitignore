@@ -1,7 +1,14 @@
 *.swp
 _build
+_opam
 .merlin
 orpie.install
+*.cmi
+*.cmo
+*.cmx
+*.o
+*.obj
+*.exe
 doc/*.aux
 doc/*.dvi
 doc/*.haux

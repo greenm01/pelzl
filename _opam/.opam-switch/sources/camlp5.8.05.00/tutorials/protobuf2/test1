@@ -1,3 +1,0 @@
-#!/bin/bash
-
-patdiff $1 <(./pb0 < $1)

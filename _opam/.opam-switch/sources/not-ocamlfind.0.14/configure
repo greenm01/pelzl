@@ -1,4 +1,0 @@
-#!/bin/sh
-
-(cd local-packages/ocamlfind \
-  && ./configure "$@" )

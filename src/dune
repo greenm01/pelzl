@@ -1,0 +1,13 @@
+(executable
+ (name pelzl_exe)
+ (public_name pelzl)
+ (modules pelzl_exe modern_ui)
+ (flags (:standard -w -27-35-52 -thread -alert -deprecated))
+ (libraries orpie_classic pelzl_core mosaic curses gsl num str threads camlp-streams))
+
+(executable
+ (name orpie_exe)
+ (public_name orpie)
+ (modules orpie_exe modern_ui)
+ (flags (:standard -w -27-35-52 -thread -alert -deprecated))
+ (libraries orpie_classic pelzl_core mosaic curses gsl num str threads camlp-streams))

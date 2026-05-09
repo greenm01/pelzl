@@ -1,7 +1,0 @@
-(executable
- (name test)
- (libraries curses))
-
-(executable
- (name unicode_trading)
- (libraries curses))

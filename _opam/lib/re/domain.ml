@@ -1,6 +1,0 @@
-# 1 "lib/fake/domain.ml"
-module DLS = struct
-  let new_key f = ref (f())
-  let set x y = x := y
-  let get x = !x
-end

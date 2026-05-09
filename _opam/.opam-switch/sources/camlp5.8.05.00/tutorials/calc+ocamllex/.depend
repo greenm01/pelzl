@@ -1,6 +1,0 @@
-calclexer.cmo :
-calclexer.cmx :
-calc.cmo : \
-    calclexer.cmo
-calc.cmx : \
-    calclexer.cmx
