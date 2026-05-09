@@ -464,17 +464,38 @@ let update msg model =
       in
       let is_enter = (data.key = Enter) in
       if model.ui_mode = Repl then
-        (* In Repl mode the focused Mosaic.input handles editing.
-           Subscriptions only forward keys it didn't consume; we use
-           that channel for Up/Down history and emergency exits. *)
         match data.key with
-        | Up -> history_prev model, Mosaic.Cmd.none
+        | Up   -> history_prev model, Mosaic.Cmd.none
         | Down -> history_next model, Mosaic.Cmd.none
+        | Enter ->
+            let model', should_quit = submit_repl model model.entry in
+            let model', cmd = take_pending model' in
+            if should_quit then model', Mosaic.Cmd.quit else model', cmd
+        | Backspace ->
+            let entry =
+              if String.length model.entry > 0 then
+                String.sub model.entry 0 (String.length model.entry - 1)
+              else ""
+            in
+            { model with entry; history_idx = None;
+                         history_save = ""; error_msg = None },
+            Mosaic.Cmd.none
         | Char c when data.modifier.ctrl
                       && Uchar.equal c (Uchar.of_char 'd')
                       && model.entry = "" ->
             model, Mosaic.Cmd.quit
-        | _ -> model, Mosaic.Cmd.none
+        | Char c when data.modifier.ctrl
+                      && Uchar.equal c (Uchar.of_char 'u') ->
+            { model with entry = ""; history_idx = None;
+                         history_save = ""; error_msg = None },
+            Mosaic.Cmd.none
+        | Char c when not data.modifier.ctrl && not data.modifier.alt
+                      && Uchar.is_char c ->
+            let s = model.entry ^ String.make 1 (Uchar.to_char c) in
+            { model with entry = s; history_idx = None;
+                         history_save = ""; error_msg = None },
+            Mosaic.Cmd.none
+        | _ -> { model with error_msg = None }, Mosaic.Cmd.none
       else if model.entry <> "" && is_enter then
         push_entry model, Mosaic.Cmd.none
       else
