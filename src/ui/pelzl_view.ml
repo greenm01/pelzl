@@ -76,10 +76,15 @@ let classic_view model =
         ~flex_grow:1. [ right_pane ]
   in
   let divider_text = String.make model.width '-' in
-  let entry_text =
+  let entry_line =
     match model.error_msg with
-    | Some msg -> msg
-    | None -> model.entry
+    | Some msg -> Mosaic.text msg
+    | None ->
+        let cursor_style = Mosaic.Ansi.Style.make ~inverse:true () in
+        Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row
+          [ Mosaic.text "> ";
+            Mosaic.text model.entry;
+            Mosaic.text ~style:cursor_style " " ]
   in
   Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Column
     ~size:(Mosaic.size_wh (Mosaic.pct 100) (Mosaic.pct 100))
@@ -87,7 +92,7 @@ let classic_view model =
       Mosaic.box ~display:Mosaic.Display.Block
         ~size:(Mosaic.size_wh (Mosaic.pct 100) (Mosaic.px 2))
         [ Mosaic.text divider_text;
-          Mosaic.text entry_text ]
+          entry_line ]
     ]
 
 let modern_view model =
@@ -99,13 +104,7 @@ let modern_view model =
       if line = "" then "  " else Printf.sprintf "%2d: %s" idx line)
   in
   let stack_text = String.concat "\n" stack_lines in
-  let entry_text = Printf.sprintf "\u{25B6} %s" model.entry in
   let mode_str = get_mode_str model.calc in
-  let status =
-    match model.error_msg with
-    | Some msg -> " \u{26A0} " ^ msg
-    | None -> mode_str
-  in
   let style_cyan = Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Cyan () in
   let style_magenta = Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Magenta () in
   let style_green = Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Green ~bold:true () in
@@ -120,14 +119,24 @@ let modern_view model =
       ~size:(Mosaic.size_wh (Mosaic.pct 40) (Mosaic.pct 100))
       [ Mosaic.text ~style:style_magenta "COMMANDS\n--------\n+ - * / ^\ns l e i c\nu d w \\ |\nh help  Q quit" ]
   in
+  let entry_line =
+    match model.error_msg with
+    | Some msg -> Mosaic.text ~style:style_green (" \u{26A0} " ^ msg)
+    | None ->
+        let cursor_style = Mosaic.Ansi.Style.make ~inverse:true () in
+        Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row
+          [ Mosaic.text ~style:style_green (Printf.sprintf "\u{25B6} %s" model.entry);
+            Mosaic.text ~style:cursor_style " ";
+            Mosaic.text " ";
+            Mosaic.text mode_str ]
+  in
   Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Column
     ~size:(Mosaic.size_wh (Mosaic.pct 100) (Mosaic.pct 100))
     [ Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row
         ~flex_grow:1. [ left_pane; right_pane ];
       Mosaic.box ~display:Mosaic.Display.Block
         ~size:(Mosaic.size_wh (Mosaic.pct 100) (Mosaic.px 2))
-        [ Mosaic.text ~style:style_green entry_text;
-          Mosaic.text status ]
+        [ entry_line ]
     ]
 
 let view model =
