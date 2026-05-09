@@ -16,5 +16,11 @@ let () =
     | Pelzl_model.Repl -> `Primary    (* inline; native scrollback *)
     | Pelzl_model.Classic -> `Alt     (* full alt-screen TUI *)
   in
+  (* In Primary mode the Matrix runtime queries the cursor position to
+     anchor its inline render area.  Emit a newline first so the cursor
+     is reliably at column 1 when that query fires; without this the
+     render-offset calculation can be wrong, causing the live area to
+     appear at the wrong row and leaving stale content on exit. *)
+  if mode_kind = `Primary then (print_char '\n'; flush stdout);
   let matrix = Matrix.create ~mode:mode_kind () in
   Mosaic.run ~matrix (Pelzl_app.app !mode)

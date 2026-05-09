@@ -432,7 +432,8 @@ let update msg model =
   | Submit s ->
       let model', should_quit = submit_repl model s in
       let model', cmd = take_pending model' in
-      if should_quit then model', Mosaic.Cmd.quit else model', cmd
+      if should_quit then model', Mosaic.Cmd.perform (fun _ -> exit 0)
+      else model', cmd
   | History_prev ->
       history_prev model, Mosaic.Cmd.none
   | History_next ->
@@ -470,7 +471,8 @@ let update msg model =
         | Enter ->
             let model', should_quit = submit_repl model model.entry in
             let model', cmd = take_pending model' in
-            if should_quit then model', Mosaic.Cmd.quit else model', cmd
+            if should_quit then model', Mosaic.Cmd.perform (fun _ -> exit 0)
+            else model', cmd
         | Backspace ->
             let entry =
               if String.length model.entry > 0 then
@@ -483,7 +485,7 @@ let update msg model =
         | Char c when data.modifier.ctrl
                       && Uchar.equal c (Uchar.of_char 'd')
                       && model.entry = "" ->
-            model, Mosaic.Cmd.quit
+            model, Mosaic.Cmd.perform (fun _ -> exit 0)
         | Char c when data.modifier.ctrl
                       && Uchar.equal c (Uchar.of_char 'u') ->
             { model with entry = ""; history_idx = None;
@@ -508,7 +510,7 @@ let update msg model =
         (match op_opt with
         | Some (Operations.Function f) -> exec_function model f, Mosaic.Cmd.none
         | Some (Operations.Command c) ->
-            if c = Operations.Quit then model, Mosaic.Cmd.quit
+            if c = Operations.Quit then model, Mosaic.Cmd.perform (fun _ -> exit 0)
             else if c = Operations.CycleHelp then { model with show_help = not model.show_help }, Mosaic.Cmd.none
             else exec_command model c, Mosaic.Cmd.none
         | Some (Operations.Edit e) -> exec_edit model e, Mosaic.Cmd.none
@@ -531,7 +533,8 @@ let update msg model =
       if model.ui_mode = Repl then
         let model', should_quit = submit_repl model model.entry in
         let model', cmd = take_pending model' in
-        if should_quit then model', Mosaic.Cmd.quit else model', cmd
+        if should_quit then model', Mosaic.Cmd.perform (fun _ -> exit 0)
+        else model', cmd
       else
         { (push_entry model) with error_msg = None }, Mosaic.Cmd.none
   | Clear_error ->
@@ -547,4 +550,4 @@ let update msg model =
   | Resize (w, h) ->
       { model with width = w; height = h }, Mosaic.Cmd.none
   | Quit ->
-      model, Mosaic.Cmd.quit
+      model, Mosaic.Cmd.perform (fun _ -> exit 0)
