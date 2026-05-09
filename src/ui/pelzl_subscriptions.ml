@@ -1,12 +1,15 @@
 open Pelzl_model
 
-let subscriptions _model =
+let subscriptions model =
   Mosaic.Sub.batch [
     Mosaic.Sub.on_key_all (fun ev ->
       let data = Mosaic.Event.Key.data ev in
       match data.key with
       | Char c when data.modifier.ctrl
                     && Uchar.equal c (Uchar.of_char 'q') -> Some Quit
+      | Char c when data.modifier.ctrl
+                    && Uchar.equal c (Uchar.of_char 'd')
+                    && model.entry = "" -> Some Quit
       | _ -> Some (Key_input ev)
     );
     Mosaic.Sub.on_resize (fun ~width ~height -> Resize (width, height));
