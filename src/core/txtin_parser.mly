@@ -1,8 +1,8 @@
 %{
 (*  Orpie -- a fullscreen RPN calculator for the console
  *  Copyright (C) 2003-2004, 2005, 2006-2007, 2010, 2018 Paul Pelzl
- *  Copyright (C) 2026 Mason Austin Green
  *
+*  Copyright (C) 2026 Mason Austin Green
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License, Version 3,
  *  as published by the Free Software Foundation.

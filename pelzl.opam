@@ -1,5 +1,5 @@
 opam-version: "2.0"
-name: "orpie"
+name: "pelzl"
 version: "1.6.1"
 maintainer: "Mason Austin Green <mason@greenm01.net>"
 authors: ["Paul Pelzl <pelzlpj@gmail.com>" "Mason Austin Green <mason@greenm01.net>"]
@@ -7,7 +7,7 @@ homepage: "https://github.com/greenm01/pelzl"
 bug-reports: "https://github.com/greenm01/pelzl/issues"
 license: "GPL-3.0-only"
 dev-repo: "git+https://github.com/greenm01/pelzl.git"
-build: ["dune" "build" "-p" "orpie"]
+build: ["dune" "build" "-p" "pelzl"]
 depends: [
   "ocaml" {>= "5.4.0"}
   "dune" {>= "3.0"}

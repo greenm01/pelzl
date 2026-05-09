@@ -1,15 +1,15 @@
 (library
  (name pelzl_core)
- (public_name orpie.core)
+ (public_name pelzl.core)
  (wrapped false)
  (flags (:standard -w -27-35-52 -thread -alert -deprecated))
  (libraries curses gsl num str threads camlp-streams))
 
-; Use orpie.opam as the authoritative source of version number
+; Use pelzl.opam as the authoritative source of version number
 (rule
   (targets version.ml)
   (action (system "grep '^version:' %{deps} | sed -E 's/^version: *\"([^\"]*)\"/let version = \"\\1\"/' > %{targets}"))
-  (deps (file %{project_root}/orpie.opam)))
+  (deps (file %{project_root}/pelzl.opam)))
 
 ; Support $PREFIX for overriding installation location
 (rule

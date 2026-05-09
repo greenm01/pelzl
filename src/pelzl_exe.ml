@@ -1,3 +1,6 @@
+(*  Pelzl -- a modern RPN calculator for the console
+ *  Copyright (C) 2026 Mason Austin Green
+ *)
 let run_classic () =
   let open Curses in
   (* load orpierc *)
