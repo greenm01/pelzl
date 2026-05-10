@@ -20,44 +20,26 @@ let () =
     Matrix.Terminal.send terminal
       Matrix.Ansi.(to_string reset ^ to_string clear_and_home)
   in
-  let cleanup_primary_exit matrix =
-    let terminal = Matrix.terminal matrix in
-    let cursor = Matrix.Terminal.cursor_position terminal in
-    Matrix.Terminal.move_cursor terminal ~row:cursor.y ~col:1 ~visible:true;
-    Matrix.Terminal.send terminal
-      Matrix.Ansi.(to_string reset ^ to_string erase_below_cursor)
-  in
   let rec run mode initial_model =
-  let mode_kind =
-    match mode with
-    | Pelzl_model.Repl -> `Primary    (* inline; native scrollback *)
-    | Pelzl_model.Classic -> `Alt     (* full alt-screen TUI *)
-  in
-  (* In Primary mode the Matrix runtime queries the cursor position to
-     anchor its inline render area.  Emit a newline first so the cursor
-     is reliably at column 1 when that query fires; without this the
-     render-offset calculation can be wrong, causing the live area to
-     appear at the wrong row and leaving stale content on exit. *)
-  if mode_kind = `Primary then (print_char '\n'; flush stdout);
-  let matrix = Matrix.create ~mode:mode_kind () in
-  let requested_mode = ref None in
-  let editor_runner path =
-    Matrix.suspend matrix;
-    Fun.protect
-      ~finally:(fun () -> Matrix.resume matrix)
-      (fun () -> ignore (Sys.command (!(Rcfile.editor) ^ " " ^ Filename.quote path)))
-  in
-  let on_mode_switch mode model =
-    requested_mode := Some (mode, model)
-  in
-  Mosaic.run ~matrix
-    (Pelzl_app.app ~editor_runner ~on_mode_switch ?initial_model mode);
-  match !requested_mode with
-  | None ->
-      if mode_kind = `Primary then cleanup_primary_exit matrix
-  | Some (next_mode, model) ->
-      clear_for_mode_switch matrix;
-      run next_mode (Some model)
+    let matrix = Matrix.create ~mode:`Alt ~cursor_visible:false () in
+    let requested_mode = ref None in
+    let editor_runner path =
+      Matrix.suspend matrix;
+      Fun.protect
+        ~finally:(fun () -> Matrix.resume matrix)
+        (fun () ->
+           ignore (Sys.command (!(Rcfile.editor) ^ " " ^ Filename.quote path)))
+    in
+    let on_mode_switch mode model =
+      requested_mode := Some (mode, model)
+    in
+    Mosaic.run ~matrix
+      (Pelzl_app.app ~editor_runner ~on_mode_switch ?initial_model mode);
+    match !requested_mode with
+    | None -> ()
+    | Some (next_mode, model) ->
+        clear_for_mode_switch matrix;
+        run next_mode (Some model)
   in
   clear_terminal_startup ();
   run !mode None

@@ -33,8 +33,7 @@ jobs:
 
     - name: Prepare artifact
       run: |
-        cp _build/default/src/pelzl.exe pelzl
-        chmod +x pelzl
+        install -m 755 _build/default/src/pelzl_exe.exe pelzl
         strip pelzl
 
     - name: Upload artifact

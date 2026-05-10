@@ -294,16 +294,16 @@ let style_meta =
   Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Bright_blue ()
 let style_dim =
   Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Bright_black ()
-let style_cursor =
-  Mosaic.Ansi.Style.make ~inverse:true ()
+let style_plain =
+  Mosaic.Ansi.Style.default
 
 (* Tokenize the current entry and produce a list of styled spans
    covering the entire string. Whitespace and inter-token gaps are
    emitted as plain text. *)
-let highlight_entry calc s : _ Mosaic.t list =
+let entry_spans calc s : Mosaic.span list =
   if s = "" then []
   else if String.length s > 0 && s.[0] = ':' then
-    [ Mosaic.text ~style:style_meta s ]
+    [ { Mosaic.text = s; style = style_meta } ]
   else
     let toks = Pelzl_algebraic.tokenize s in
     let vars = Pelzl_engine.get_variables calc in
@@ -313,7 +313,8 @@ let highlight_entry calc s : _ Mosaic.t list =
       | [] ->
           let acc =
             if pos < n then
-              Mosaic.text (String.sub s pos (n - pos)) :: acc
+              { Mosaic.text = String.sub s pos (n - pos);
+                style = style_plain } :: acc
             else acc
           in
           List.rev acc
@@ -321,7 +322,8 @@ let highlight_entry calc s : _ Mosaic.t list =
           let { Pelzl_algebraic.start; len } = t.Pelzl_algebraic.span in
           let acc =
             if pos < start then
-              Mosaic.text (String.sub s pos (start - pos)) :: acc
+              { Mosaic.text = String.sub s pos (start - pos);
+                style = style_plain } :: acc
             else acc
           in
           let text = String.sub s start len in
@@ -337,28 +339,22 @@ let highlight_entry calc s : _ Mosaic.t list =
             | T_assign -> Some style_assign
             | T_error _ -> Some style_err
           in
-          let node =
-            match style with
-            | Some st -> Mosaic.text ~style:st text
-            | None -> Mosaic.text text
-          in
-          loop (start + len) rest (node :: acc)
+          let style = Option.value style ~default:style_plain in
+          loop (start + len) rest ({ Mosaic.text; style } :: acc)
     in
     loop 0 toks []
 
-let highlight_entry_with_cursor calc s cursor =
+let clamp_cursor s cursor =
   let n = String.length s in
-  let cursor = max 0 (min cursor n) in
-  let before = String.sub s 0 cursor in
-  let before_nodes = highlight_entry calc before in
-  if cursor >= n then
-    before_nodes @ [ Mosaic.text ~style:style_cursor " " ]
-  else
-    let cursor_text = String.sub s cursor 1 in
-    let after = String.sub s (cursor + 1) (n - cursor - 1) in
-    before_nodes
-    @ [ Mosaic.text ~style:style_cursor cursor_text ]
-    @ highlight_entry calc after
+  max 0 (min cursor n)
+
+let repl_prompt_plain s =
+  "> " ^ s
+
+let entry_spans_plain calc s =
+  entry_spans calc s
+  |> List.map (fun (span : Mosaic.span) -> span.text)
+  |> String.concat ""
 
 (* Optional dim ghost preview: show "= <result>" inline if the current
    entry parses, has no assignment, and evaluates without error. *)
@@ -456,10 +452,17 @@ let style_of_repl_line = function
   | Error -> Some style_err
   | Msg -> Some style_dim
 
+let empty_repl_row () =
+  Mosaic.box
+    ~display:Mosaic.Display.Flex
+    ~flex_direction:Row
+    ~size:(Mosaic.size_wh (Mosaic.pct 100) (Mosaic.px 1))
+    []
+
 let repl_line_view line =
   let nodes =
     match line with
-    | [] -> [ Mosaic.text " " ]
+    | [] -> []
     | segments ->
         List.map
           (fun (style, text) ->
@@ -468,7 +471,30 @@ let repl_line_view line =
             | Some style -> Mosaic.text ~style text)
           segments
   in
-  Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row nodes
+  match nodes with
+  | [] -> empty_repl_row ()
+  | _ -> Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row nodes
+
+let repl_status_plain model =
+  match model.error_msg with
+  | None ->
+      (match preview_for model.calc model.entry with
+       | None -> ""
+       | Some r -> "  = " ^ r)
+  | Some msg -> "  ! " ^ msg
+
+let repl_status_view model =
+  match model.error_msg with
+  | None ->
+      (match preview_for model.calc model.entry with
+       | None -> empty_repl_row ()
+       | Some r ->
+           Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row
+             [ Mosaic.text ~style:style_dim "  = ";
+               Mosaic.text ~style:style_dim r ])
+  | Some msg ->
+      Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row
+        [ Mosaic.text ~style:style_err ("  ! " ^ msg) ]
 
 let repl_view model =
   let transcript_rows =
@@ -476,23 +502,28 @@ let repl_view model =
     |> List.map repl_line_view
   in
   let prompt =
-    Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row (
-      [ Mosaic.text ~style:style_prompt "> " ]
-      @ highlight_entry_with_cursor model.calc model.entry model.entry_cursor)
+    Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row
+      [ Mosaic.text ~style:style_prompt "> ";
+        Mosaic.textarea
+          ~id:"repl-entry"
+          ~autofocus:true
+          ~focusable:true
+          ~flex_grow:1.
+          ~size:(Mosaic.size_wh (Mosaic.pct 100) (Mosaic.px 1))
+          ~value:model.entry
+          ~cursor:(clamp_cursor model.entry model.entry_cursor)
+          ~spans:(entry_spans model.calc model.entry)
+          ~wrap:`None
+          ~text_color:Mosaic.Ansi.Color.White
+          ~focused_text_color:Mosaic.Ansi.Color.White
+          ~background_color:Mosaic.Ansi.Color.default
+          ~focused_background_color:Mosaic.Ansi.Color.default
+          ~cursor_style:`Line
+          ~cursor_color:Mosaic.Ansi.Color.White
+          ~cursor_blinking:false
+          () ]
   in
-  let status_row =
-    match model.error_msg with
-    | None ->
-        (match preview_for model.calc model.entry with
-         | None -> Mosaic.text " "
-         | Some r ->
-             Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row
-               [ Mosaic.text ~style:style_dim "  = ";
-                 Mosaic.text ~style:style_dim r ])
-    | Some msg ->
-        Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row
-          [ Mosaic.text ~style:style_err ("  ! " ^ msg) ]
-  in
+  let status_row = repl_status_view model in
   let hint_row =
     Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row
       [ Mosaic.text ~style:style_dim repl_hint_text ]

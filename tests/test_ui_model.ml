@@ -100,6 +100,27 @@ let test_preview_does_not_mutate_stack () =
   check string "stack display unchanged" "99"
     (String.trim (Pelzl_engine.get_display_line 1 calc))
 
+let test_repl_prompt_is_stable_text () =
+  check string "empty prompt" "> "
+    (Pelzl_view.repl_prompt_plain "");
+  check string "first colon prompt" "> :"
+    (Pelzl_view.repl_prompt_plain ":");
+  check string "middle cursor does not affect prompt text" "> abcd"
+    (Pelzl_view.repl_prompt_plain "abcd")
+
+let test_repl_entry_spans_match_entry_text () =
+  let model, _cmd = init Repl () in
+  check string "colon command spans" ":help"
+    (Pelzl_view.entry_spans_plain model.calc ":help");
+  check string "expression spans" "1+sin(pi)"
+    (Pelzl_view.entry_spans_plain model.calc "1+sin(pi)")
+
+let test_repl_empty_status_is_blank () =
+  let model, _cmd = init Repl () in
+  check string "blank status" "" (Pelzl_view.repl_status_plain model);
+  let model = { model with entry = ":"; entry_cursor = 1 } in
+  check string "colon status remains blank" "" (Pelzl_view.repl_status_plain model)
+
 let key ?(modifier = Input.Key.no_modifier) k =
   Mosaic.Event.Key.of_input (Input.Key.make ~modifier k)
 
@@ -116,6 +137,16 @@ let alt_char ch =
 
 let plain_char ch =
   key (Input.Key.Char (Uchar.of_char ch))
+
+let test_repl_first_colon_keeps_prompt_visible () =
+  let model, _cmd = init Repl () in
+  let model, _cmd = update (Key_input (plain_char ':')) model in
+  check string "entry" ":" model.entry;
+  check int "cursor" 1 model.entry_cursor;
+  check string "prompt" "> :"
+    (Pelzl_view.repl_prompt_plain model.entry);
+  check (option string) "no error" None model.error_msg;
+  check int "transcript unchanged" 0 (List.length model.repl_transcript)
 
 let contains_substring haystack needle =
   try
@@ -683,6 +714,13 @@ let ui_tests = [
   ("algebraic evaluation", `Quick, test_algebraic_eval);
   ("preview trailing operator does not use stack", `Quick, test_preview_trailing_operator_does_not_use_stack);
   ("preview does not mutate stack", `Quick, test_preview_does_not_mutate_stack);
+  ("repl prompt is stable text", `Quick,
+   test_repl_prompt_is_stable_text);
+  ("repl entry spans match entry text", `Quick,
+   test_repl_entry_spans_match_entry_text);
+  ("repl empty status is blank", `Quick, test_repl_empty_status_is_blank);
+  ("repl first colon keeps prompt visible", `Quick,
+   test_repl_first_colon_keeps_prompt_visible);
   ("raw Ctrl-Q quits repl even with entry", `Quick, test_raw_ctrl_q_quits_repl_even_with_entry);
   ("uppercase Ctrl-Q quits repl even with entry", `Quick, test_uppercase_ctrl_q_quits_repl_even_with_entry);
   ("repl :quit enter returns quit", `Quick, test_repl_colon_quit_enter_returns_quit);
