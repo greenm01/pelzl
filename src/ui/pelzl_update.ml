@@ -517,26 +517,35 @@ let update msg model =
       let data = Mosaic.Event.Key.data ev in
       let key_binding =
         let open Pelzl_engine in
-        let k = match data.key with
-        | Char c -> Key_char c
-        | Enter -> Key_enter
-        | Tab -> Key_tab
-        | Backspace -> Key_backspace
-        | Delete -> Key_delete
-        | Escape -> Key_escape
-        | Up -> Key_up
-        | Down -> Key_down
-        | Left -> Key_left
-        | Right -> Key_right
-        | Home -> Key_home
-        | End -> Key_end
-        | Page_up -> Key_page_up
-        | Page_down -> Key_page_down
-        | Insert -> Key_insert
-        | F n -> Key_f n
-        | _ -> Key_unknown 0
+        let k, ctrl = match data.key with
+        | Char c when data.modifier.ctrl && Uchar.is_char c ->
+            let ch = Char.uppercase_ascii (Uchar.to_char c) in
+            let code = Char.code ch - Char.code '@' in
+            if code >= 0 && code < 0x20 then Key_char (Uchar.of_int code), true
+            else Key_char c, true
+        | Char c when Uchar.to_int c > 0 && Uchar.to_int c < 0x20 ->
+            Key_char c, true
+        | Char c when Uchar.equal c (Uchar.of_char ' ') ->
+            Key_space, data.modifier.ctrl
+        | Char c -> Key_char c, data.modifier.ctrl
+        | Enter -> Key_enter, data.modifier.ctrl
+        | Tab -> Key_tab, data.modifier.ctrl
+        | Backspace -> Key_backspace, data.modifier.ctrl
+        | Delete -> Key_delete, data.modifier.ctrl
+        | Escape -> Key_escape, data.modifier.ctrl
+        | Up -> Key_up, data.modifier.ctrl
+        | Down -> Key_down, data.modifier.ctrl
+        | Left -> Key_left, data.modifier.ctrl
+        | Right -> Key_right, data.modifier.ctrl
+        | Home -> Key_home, data.modifier.ctrl
+        | End -> Key_end, data.modifier.ctrl
+        | Page_up -> Key_page_up, data.modifier.ctrl
+        | Page_down -> Key_page_down, data.modifier.ctrl
+        | Insert -> Key_insert, data.modifier.ctrl
+        | F n -> Key_f n, data.modifier.ctrl
+        | _ -> Key_unknown 0, data.modifier.ctrl
         in
-        { key = k; ctrl = data.modifier.ctrl; meta = data.modifier.alt }
+        { key = k; ctrl; meta = data.modifier.alt }
       in
       let is_enter = (data.key = Enter) in
       if is_ctrl_char data 'q'

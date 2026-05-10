@@ -62,6 +62,13 @@ let test_ui_modes () =
   let model_c, _cmd = init Classic () in
   check bool "is classic" true (model_c.ui_mode = Classic)
 
+let test_classic_initial_modes_match_orpie () =
+  let model, _cmd = init Classic () in
+  let modes = Pelzl_engine.get_modes model.calc in
+  check bool "angle rad" true (modes.angle = Pelzl_engine.Rad);
+  check bool "base dec" true (modes.base = Pelzl_engine.Dec);
+  check bool "complex rect" true (modes.complex = Pelzl_engine.Rect)
+
 let test_algebraic_eval () =
   let model, _cmd = init Repl () in
   let model = { model with entry = "1+2*3" } in
@@ -106,9 +113,112 @@ let ctrl_char ch =
 let plain_char ch =
   key (Input.Key.Char (Uchar.of_char ch))
 
+let stack_with_ints ints stack =
+  List.fold_left
+    (fun stack n ->
+      Pelzl_engine.stack_push
+        (Pelzl_engine.RpcInt (Big_int.big_int_of_int n))
+        stack)
+    stack ints
+
+let classic_with_ints ints =
+  let model, _cmd = init Classic () in
+  let calc =
+    { model.calc with
+      Pelzl_engine.stack = stack_with_ints ints model.calc.Pelzl_engine.stack }
+  in
+  { model with calc }
+
+let top_display model =
+  String.trim (Pelzl_engine.get_display_line 1 model.calc)
+
+let top_int model =
+  match Pelzl_engine.stack_peek 1 model.calc.Pelzl_engine.stack with
+  | Pelzl_engine.RpcInt i -> Big_int.int_of_big_int i
+  | _ -> fail "expected integer on stack"
+
 let cmd_is_quit = function
   | Mosaic.Cmd.Quit -> true
   | _ -> false
+
+let test_classic_enter_pushes_entry () =
+  let model, _cmd = init Classic () in
+  let model = { model with entry = "42"; entry_cursor = 2 } in
+  let model, _cmd = update (Key_input (key Input.Key.Enter)) model in
+  check string "entry pushed" "42" (top_display model);
+  check string "entry cleared" "" model.entry;
+  check int "cursor reset" 0 model.entry_cursor
+
+let test_classic_drop_key_drops () =
+  let model = classic_with_ints [42] in
+  let model, _cmd = update (Key_input (plain_char '\\')) model in
+  check int "stack len" 0 (Pelzl_engine.stack_length model.calc.Pelzl_engine.stack)
+
+let test_classic_pagedown_swaps () =
+  let model = classic_with_ints [1; 2] in
+  let model, _cmd = update (Key_input (key Input.Key.Page_down)) model in
+  check int "top after swap" 1 (top_int model)
+
+let test_classic_backspace_key_backspaces () =
+  let model, _cmd = init Classic () in
+  let model = { model with entry = "12"; entry_cursor = 2 } in
+  let model, _cmd = update (Key_input (key Input.Key.Backspace)) model in
+  check string "backspace entry" "1" model.entry;
+  check int "backspace cursor" 1 model.entry_cursor
+
+let test_classic_del_backspaces () =
+  let model, _cmd = init Classic () in
+  let model = { model with entry = "12"; entry_cursor = 2 } in
+  let model, _cmd = update (Key_input (raw_ctrl_char 0x7f)) model in
+  check string "del/backspace entry" "1" model.entry;
+  check int "del/backspace cursor" 1 model.entry_cursor
+
+let test_classic_space_enters_scientific_notation () =
+  let model, _cmd = init Classic () in
+  let model = { model with entry = "1"; entry_cursor = 1 } in
+  let model, _cmd = update (Key_input (plain_char ' ')) model in
+  check string "scientific notation marker" "1e" model.entry;
+  check int "cursor" 2 model.entry_cursor
+
+let test_classic_arithmetic_keys () =
+  let apply ints ch =
+    let model, _cmd = update (Key_input (plain_char ch)) (classic_with_ints ints) in
+    top_int model
+  in
+  check int "add" 5 (apply [2; 3] '+');
+  check int "subtract" (-1) (apply [2; 3] '-');
+  check int "multiply" 6 (apply [2; 3] '*');
+  check int "divide" 2 (apply [6; 3] '/');
+  check int "power" 8 (apply [2; 3] '^');
+  check int "negate" (-5) (apply [5] 'n')
+
+let test_classic_refresh_keys_are_accepted () =
+  let assert_refresh ev label =
+    let model = classic_with_ints [9] in
+    let model, cmd = update (Key_input ev) model in
+    check bool (label ^ " no quit") false (cmd_is_quit cmd);
+    check int (label ^ " preserves stack") 9 (top_int model);
+    check (option string) (label ^ " no error") None model.error_msg
+  in
+  assert_refresh (ctrl_char 'l') "modified ctrl-l";
+  assert_refresh (raw_ctrl_char 0x0c) "raw ctrl-l"
+
+let test_classic_q_quits () =
+  let model, _cmd = init Classic () in
+  let _model, cmd = update (Key_input (plain_char 'Q')) model in
+  check bool "Q quits" true (cmd_is_quit cmd)
+
+let test_classic_misc_keys_are_bound () =
+  let _model, _cmd = init Classic () in
+  let command key =
+    Rcfile.command_of_key (Pelzl_engine.decode_single_key_string key)
+  in
+  check bool "apostrophe starts abbrev" true
+    (command "'" = Operations.BeginAbbrev);
+  check bool "up starts browse" true
+    (command "<up>" = Operations.BeginBrowse);
+  check bool "ctrl-l refresh" true
+    (command "\\Cl" = Operations.Refresh)
 
 let test_repl_cursor_movement_keys () =
   let model, _cmd = init Repl () in
@@ -186,6 +296,17 @@ let ui_tests = [
   ("update toggle help", `Quick, test_toggle_help);
   ("update resize changes dimensions", `Quick, test_resize);
   ("ui mode selection", `Quick, test_ui_modes);
+  ("classic starts in Orpie modes", `Quick, test_classic_initial_modes_match_orpie);
+  ("classic enter pushes entry", `Quick, test_classic_enter_pushes_entry);
+  ("classic drop key drops", `Quick, test_classic_drop_key_drops);
+  ("classic pagedown swaps", `Quick, test_classic_pagedown_swaps);
+  ("classic backspace key backspaces", `Quick, test_classic_backspace_key_backspaces);
+  ("classic del backspaces", `Quick, test_classic_del_backspaces);
+  ("classic space enters scientific notation", `Quick, test_classic_space_enters_scientific_notation);
+  ("classic arithmetic keys", `Quick, test_classic_arithmetic_keys);
+  ("classic refresh keys accepted", `Quick, test_classic_refresh_keys_are_accepted);
+  ("classic Q quits", `Quick, test_classic_q_quits);
+  ("classic misc keys are bound", `Quick, test_classic_misc_keys_are_bound);
   ("algebraic evaluation", `Quick, test_algebraic_eval);
   ("preview trailing operator does not use stack", `Quick, test_preview_trailing_operator_does_not_use_stack);
   ("preview does not mutate stack", `Quick, test_preview_does_not_mutate_stack);

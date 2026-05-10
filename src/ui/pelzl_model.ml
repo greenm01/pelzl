@@ -71,6 +71,7 @@ let register_default_bindings () =
   bind "n" (Edit Minus);
   bind "`" (Edit SciNotBase);
   bind "<space>" (Edit SciNotBase);
+  bind "0o177" (Edit Backspace);
   bind "#" (Edit BeginInteger);
   bind "(" (Edit BeginComplex);
   bind "[" (Edit BeginMatrix);
@@ -109,13 +110,17 @@ let register_default_bindings () =
   bind "O" (Function Max);
   bind "U" (Function Utpn);
   bind "Z" (Function StandardizeUnits);
-  bind "C" (Function ConvertUnits);
   bind "Y" (Function UnitValue);
   bind "T" (Function Trace);
   (* Command operations *)
   bind "\\" (Command Drop);
   bind "|" (Command Clear);
   bind "u" (Command Undo);
+  bind "<pageup>" (Command Swap);
+  bind "<pagedown>" (Command Swap);
+  bind "<return>" (Command Dup);
+  bind "<up>" (Command BeginBrowse);
+  bind "C" (Command BeginConst);
   bind "r" (Command ToggleAngleMode);
   bind "p" (Command ToggleComplexMode);
   bind "b" (Command CycleBase);
@@ -138,7 +143,6 @@ let init mode () =
   Random.self_init ();
   let slogan = all_taglines.(Random.int (Array.length all_taglines)) in
   let calc = Pelzl_engine.empty_state in
-  let calc = { calc with modes = { angle = Deg; base = Dec; complex = Rect } } in
   let history = match mode with
     | Repl -> Pelzl_history.load ()
     | Classic -> []
