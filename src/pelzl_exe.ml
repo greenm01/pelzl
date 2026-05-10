@@ -50,8 +50,17 @@ let () =
   let on_mode_switch mode model =
     requested_mode := Some (mode, model)
   in
-  Mosaic.run ~matrix
-    (Pelzl_app.app ~editor_runner ~on_mode_switch ?initial_model mode);
+  let repl_static_writer record =
+    Mosaic.Cmd.perform (fun _dispatch ->
+      let width, _ = Matrix.size matrix in
+      let text, rows =
+        Pelzl_update.render_repl_record_static ~width record
+      in
+      Matrix.static_write matrix ~rows text)
+  in
+  Mosaic.run ~matrix ~process_perform:(fun thunk -> thunk ())
+    (Pelzl_app.app ~editor_runner ~repl_static_writer ~on_mode_switch
+       ?initial_model mode);
   match !requested_mode with
   | None ->
       if mode_kind = `Primary then cleanup_primary_exit matrix

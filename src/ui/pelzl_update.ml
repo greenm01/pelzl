@@ -743,6 +743,47 @@ let repl_msg_lines s =
   | [] -> [""]
   | lines -> lines
 
+let rows_for_plain_len ~width len =
+  let width = max 1 width in
+  if len = 0 then 1 else ((len - 1) / width) + 1
+
+let rows_for_text_width ~width text =
+  rows_for_plain_len ~width (String.length text)
+
+let ansi_line segments =
+  if List.for_all (fun (_, text) -> text = "") segments then ""
+  else Mosaic.Ansi.render segments
+
+let repl_record_static_lines (r : repl_record) =
+  match r with
+  | Repl_ok { input; result } ->
+      [
+        [ style_prompt, "> "; style_input, input ];
+        [ style_arrow, "  = "; style_result, result ];
+      ]
+  | Repl_err { input; error } ->
+      [
+        [ style_prompt, "> "; style_input, input ];
+        [ style_arrow, "  ! "; style_err, error ];
+      ]
+  | Repl_msg s ->
+      List.map
+        (fun line -> if line = "" then [] else [ style_msg, line ])
+        (repl_msg_lines s)
+
+let render_repl_record_static ~width r =
+  let lines = repl_record_static_lines r in
+  let rows =
+    List.fold_left
+      (fun acc line ->
+        let plain_len =
+          List.fold_left (fun n (_, text) -> n + String.length text) 0 line
+        in
+        acc + rows_for_plain_len ~width plain_len)
+      0 lines
+  in
+  String.concat "\n" (List.map ansi_line lines), rows
+
 let render_record (r : repl_record) =
   let row children =
     Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row children
@@ -766,15 +807,17 @@ let render_record (r : repl_record) =
       Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Column
         (List.map
            (fun line ->
-             if line = "" then Mosaic.text " "
+             if line = "" then Mosaic.text ""
              else Mosaic.text ~style:style_msg line)
            (repl_msg_lines s))
 
-let take_pending model =
+let default_repl_static_writer r = Mosaic.Cmd.static_commit (render_record r)
+
+let take_pending ?(repl_static_writer = default_repl_static_writer) model =
   match model.pending_commit with
   | None -> (model, Mosaic.Cmd.none)
   | Some r ->
-      let cmd = Mosaic.Cmd.static_commit (render_record r) in
+      let cmd = repl_static_writer r in
       ({ model with pending_commit = None }, cmd)
 
 let quit_cmd = Mosaic.Cmd.quit
@@ -952,9 +995,9 @@ let handle_classic_browse editor_runner model key_binding selected_level hscroll
   with Not_found ->
     { model with error_msg = None }, Mosaic.Cmd.none
 
-let handle_repl_submit on_mode_switch model raw =
+let handle_repl_submit ?repl_static_writer on_mode_switch model raw =
   let model, action = submit_repl_action model raw in
-  let model, cmd = take_pending model in
+  let model, cmd = take_pending ?repl_static_writer model in
   match action with
   | Repl_continue -> model, cmd
   | Repl_quit -> model, quit_cmd
@@ -963,6 +1006,7 @@ let handle_repl_submit on_mode_switch model raw =
       model, quit_cmd
 
 let update ?(editor_runner = default_editor_runner)
+    ?repl_static_writer
     ?(on_mode_switch = default_mode_switch) msg model =
   match msg with
   | Set_entry s ->
@@ -970,7 +1014,7 @@ let update ?(editor_runner = default_editor_runner)
                              history_save = ""; error_msg = None },
       Mosaic.Cmd.none
   | Submit s ->
-      handle_repl_submit on_mode_switch model s
+      handle_repl_submit ?repl_static_writer on_mode_switch model s
   | History_prev ->
       history_prev model, Mosaic.Cmd.none
   | History_next ->
@@ -1026,7 +1070,7 @@ let update ?(editor_runner = default_editor_runner)
         | End -> cursor_end model, Mosaic.Cmd.none
         | Delete -> delete_at_cursor model, Mosaic.Cmd.none
         | Enter ->
-            handle_repl_submit on_mode_switch model model.entry
+            handle_repl_submit ?repl_static_writer on_mode_switch model model.entry
         | Backspace ->
             delete_before_cursor model, Mosaic.Cmd.none
         | Char c when data.modifier.ctrl

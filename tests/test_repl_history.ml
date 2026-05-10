@@ -81,6 +81,35 @@ let test_repl_msg_lines_preserves_empty_rows () =
     ["  first"; ""; "  second"; ""]
     (repl_msg_lines "  first\n\n  second\n")
 
+let test_repl_static_render_msg_is_compact () =
+  let text, rows = render_repl_record_static ~width:80 (Repl_msg "a\n\nb") in
+  check int "rows" 3 rows;
+  check bool "has blank line" true (contains_substring text "\n\n");
+  check bool "no literal padding" false (contains_substring text " ");
+  check bool "no background sgr 40" false (contains_substring text "\027[4");
+  check bool "no background sgr 100" false (contains_substring text "\027[10");
+  check bool "no truecolor background" false (contains_substring text "48;")
+
+let test_repl_static_render_wrap_rows () =
+  let _text, rows = render_repl_record_static ~width:5 (Repl_msg "123456") in
+  check int "wrapped rows" 2 rows
+
+let test_repl_submit_uses_static_writer () =
+  let seen = ref None in
+  let writer record =
+    seen := Some record;
+    Mosaic.Cmd.none
+  in
+  let m = model_repl () in
+  let _m', _cmd =
+    handle_repl_submit ~repl_static_writer:writer (fun _ _ -> ()) m ":help"
+  in
+  match !seen with
+  | Some (Repl_msg txt) ->
+      check bool "writer got help" true
+        (contains_substring txt "[Ctrl-Q/D] Quit")
+  | _ -> fail "expected Repl_msg passed to static writer"
+
 let test_meta_unknown () =
   let m = model_repl () in
   match handle_meta m ":frobnicate" with
@@ -239,6 +268,9 @@ let repl_history_tests = [
   ("meta :help returns help message", `Quick, test_meta_help);
   ("repl message lines preserve empty rows", `Quick,
    test_repl_msg_lines_preserves_empty_rows);
+  ("repl static render is compact", `Quick, test_repl_static_render_msg_is_compact);
+  ("repl static render wraps rows", `Quick, test_repl_static_render_wrap_rows);
+  ("repl submit uses static writer", `Quick, test_repl_submit_uses_static_writer);
   ("meta unknown command", `Quick, test_meta_unknown);
   ("push_history prepends and dedups", `Quick, test_push_history);
   ("push_history caps at 1000", `Quick, test_push_history_cap);
