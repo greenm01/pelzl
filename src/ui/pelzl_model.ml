@@ -144,7 +144,6 @@ let register_default_bindings () =
   bind "'" (Command BeginAbbrev);
   bind "@" (Command BeginVar);
   bind "R" (Command SetRadians);
-  Rcfile.register_abbrev "repl" (Command SwitchRepl);
   ()
 
 let normalize_for_mode mode model =

@@ -571,6 +571,7 @@ let meta_help_text =
     "  history    : up/down arrows recall lines     ";
     "  commands   : :rpn :vars :purge NAME :help    ";
     "             : :quit                           ";
+    "  modes      : Alt-R toggles REPL/RPN          ";
     "  exit       : :quit, Ctrl-D (empty), or Ctrl-Q";
   ]
 
@@ -775,6 +776,11 @@ let request_mode_switch on_mode_switch mode model =
   on_mode_switch mode model;
   model, quit_cmd
 
+let request_mode_toggle on_mode_switch model =
+  match model.ui_mode with
+  | Repl -> request_mode_switch on_mode_switch Classic model
+  | Classic -> request_mode_switch on_mode_switch Repl model
+
 let execute_classic_operation on_mode_switch editor_runner model op =
   match op with
   | Operations.Function f ->
@@ -783,8 +789,6 @@ let execute_classic_operation on_mode_switch editor_runner model op =
       (match c with
       | Operations.Quit ->
           model, quit_cmd
-      | Operations.SwitchRepl ->
-          request_mode_switch on_mode_switch Repl model
       | Operations.CycleHelp ->
           { model with show_help = not model.show_help }, Mosaic.Cmd.none
       | Operations.BeginAbbrev ->
@@ -831,6 +835,14 @@ let is_backspace_key (data : Input.Key.event) =
   match data.key with
   | Backspace -> true
   | Char c -> Uchar.to_int c = 0x7f
+  | _ -> false
+
+let is_alt_r_key (data : Input.Key.event) =
+  data.modifier.alt
+  &&
+  match data.key with
+  | Char c when Uchar.is_char c ->
+      Char.lowercase_ascii (Uchar.to_char c) = 'r'
   | _ -> false
 
 let execute_abbrev on_mode_switch editor_runner model =
@@ -988,7 +1000,9 @@ let update ?(editor_runner = default_editor_runner)
         { key = k; ctrl; meta = data.modifier.alt }
       in
       let is_enter = (data.key = Enter) in
-      if is_ctrl_char data 'q'
+      if is_alt_r_key data then
+        request_mode_toggle on_mode_switch model
+      else if is_ctrl_char data 'q'
          || (is_ctrl_char data 'd' && model.entry = "")
       then model, quit_cmd
       else if model.ui_mode = Repl then
@@ -1013,6 +1027,16 @@ let update ?(editor_runner = default_editor_runner)
                       && is_text_char c ->
             insert_text (String.make 1 (Uchar.to_char c)) model, Mosaic.Cmd.none
         | _ -> { model with error_msg = None }, Mosaic.Cmd.none
+      else
+      if data.key = Escape then
+        match model.classic_mode with
+        | ClassicMain ->
+            if model.entry = "" then model, Mosaic.Cmd.none
+            else reset_entry model, Mosaic.Cmd.none
+        | ClassicAbbrev _
+        | ClassicVariable _
+        | ClassicBrowse _ ->
+            exit_classic_mode model, Mosaic.Cmd.none
       else
         (match model.classic_mode with
         | ClassicAbbrev kind ->

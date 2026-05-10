@@ -187,7 +187,6 @@ abbrev "refresh"           command_refresh
 abbrev "pi"                command_enter_pi
 abbrev "rand"              command_rand
 abbrev "edit"              command_edit_input
-abbrev "repl"              command_repl
 abbrev "add"               function_add
 abbrev "sub"               function_sub
 abbrev "mult"              function_mult

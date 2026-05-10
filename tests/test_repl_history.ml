@@ -60,6 +60,7 @@ let test_meta_help () =
   | `Commit (m', Repl_msg txt) ->
       check string "entry cleared" "" m'.entry;
       check bool "contains :rpn" true (contains_substring txt ":rpn");
+      check bool "contains Alt-R" true (contains_substring txt "Alt-R");
       check bool "does not contain :orpie" false (contains_substring txt ":orpie")
   | _ -> fail "expected `Commit with Repl_msg"
 

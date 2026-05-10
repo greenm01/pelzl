@@ -11,10 +11,10 @@ let ensure_orpie_defaults () =
     ignore (Pelzl_model.init Pelzl_model.Classic ());
     let candidates =
       [
+        "../../../etc/pelzlrc";
         "etc/pelzlrc";
         "../etc/pelzlrc";
         "../../etc/pelzlrc";
-        "../../../etc/pelzlrc";
       ]
     in
     let rcfile =
@@ -532,7 +532,7 @@ let test_command_abbreviation_examples_are_registered () =
     [
       "drop"; "clear"; "swap"; "dup"; "undo"; "rad"; "deg"; "rect";
       "polar"; "bin"; "oct"; "dec"; "hex"; "view"; "edit"; "pi"; "rand";
-      "refresh"; "about"; "quit"; "repl";
+      "refresh"; "about"; "quit";
     ]
   in
   List.iter

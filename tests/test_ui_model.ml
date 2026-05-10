@@ -110,6 +110,10 @@ let ctrl_char ch =
   let modifier = { Input.Key.no_modifier with ctrl = true } in
   key ~modifier (Input.Key.Char (Uchar.of_char ch))
 
+let alt_char ch =
+  let modifier = { Input.Key.no_modifier with alt = true } in
+  key ~modifier (Input.Key.Char (Uchar.of_char ch))
+
 let plain_char ch =
   key (Input.Key.Char (Uchar.of_char ch))
 
@@ -311,26 +315,58 @@ let test_repl_rpn_enter_requests_mode_switch () =
      | Some (Classic, m) -> m.ui_mode = Classic && top_int m = 42
      | _ -> false)
 
+let test_repl_alt_r_requests_mode_switch () =
+  let requested = ref None in
+  let on_mode_switch mode model = requested := Some (mode, model) in
+  let model, _cmd = init Repl () in
+  let model = { model with calc = (classic_with_ints [42]).calc } in
+  let model', cmd =
+    update ~on_mode_switch (Key_input (alt_char 'r')) model
+  in
+  check bool "quit for runtime handoff" true (cmd_is_quit cmd);
+  check bool "returned classic model" true (model'.ui_mode = Classic);
+  check int "stack preserved" 42 (top_int model');
+  check bool "callback called" true
+    (match !requested with
+     | Some (Classic, m) -> m.ui_mode = Classic && top_int m = 42
+     | _ -> false)
+
 let test_repl_hint_names_rpn () =
   check bool "hint contains :rpn" true
     (contains_substring Pelzl_view.repl_hint_text ":rpn");
+  check bool "hint contains Alt-R" true
+    (contains_substring Pelzl_view.repl_hint_text "Alt-R");
   check bool "hint omits :orpie" false
     (contains_substring Pelzl_view.repl_hint_text ":orpie")
 
-let test_classic_repl_abbrev_requests_mode_switch () =
-  Rcfile.register_abbrev "repl" (Operations.Command Operations.SwitchRepl);
+let test_classic_alt_r_requests_mode_switch () =
+  let requested = ref None in
+  let on_mode_switch mode model = requested := Some (mode, model) in
+  let model = classic_with_ints [42] in
+  let model', cmd =
+    update ~on_mode_switch (Key_input (alt_char 'R')) model
+  in
+  check bool "quit for runtime handoff" true (cmd_is_quit cmd);
+  check bool "returned repl model" true (model'.ui_mode = Repl);
+  check int "stack preserved" 42 (top_int model');
+  check bool "callback called" true
+    (match !requested with
+     | Some (Repl, m) -> m.ui_mode = Repl && top_int m = 42
+     | _ -> false)
+
+let test_classic_modal_alt_r_requests_mode_switch () =
   let requested = ref None in
   let on_mode_switch mode model = requested := Some (mode, model) in
   let model =
     { (classic_with_ints [42]) with
       classic_mode = ClassicAbbrev OperationAbbrev;
-      entry = "repl";
-      entry_cursor = 4;
+      entry = "sin";
+      entry_cursor = 3;
       history = ["trace"];
       show_help = true }
   in
   let model', cmd =
-    update ~on_mode_switch (Key_input (key Input.Key.Enter)) model
+    update ~on_mode_switch (Key_input (alt_char 'r')) model
   in
   check bool "quit for runtime handoff" true (cmd_is_quit cmd);
   check bool "returned repl model" true (model'.ui_mode = Repl);
@@ -340,6 +376,72 @@ let test_classic_repl_abbrev_requests_mode_switch () =
     (match !requested with
      | Some (Repl, m) -> m.ui_mode = Repl && top_int m = 42
      | _ -> false)
+
+let test_classic_escape_cancels_abbrev_mode () =
+  let model =
+    { (classic_with_ints [42]) with
+      classic_mode = ClassicAbbrev OperationAbbrev;
+      entry = "sin";
+      entry_cursor = 3;
+      error_msg = Some "old" }
+  in
+  let model', cmd = update (Key_input (key Input.Key.Escape)) model in
+  check bool "no quit" false (cmd_is_quit cmd);
+  check bool "main mode" true (model'.classic_mode = ClassicMain);
+  check string "entry cleared" "" model'.entry;
+  check (option string) "error cleared" None model'.error_msg;
+  check int "stack preserved" 42 (top_int model')
+
+let test_classic_escape_cancels_constant_mode () =
+  let model =
+    { (classic_with_ints [42]) with
+      classic_mode = ClassicAbbrev ConstantAbbrev;
+      entry = "g";
+      entry_cursor = 1 }
+  in
+  let model', cmd = update (Key_input (key Input.Key.Escape)) model in
+  check bool "no quit" false (cmd_is_quit cmd);
+  check bool "main mode" true (model'.classic_mode = ClassicMain);
+  check string "entry cleared" "" model'.entry;
+  check int "stack preserved" 42 (top_int model')
+
+let test_classic_escape_cancels_variable_mode () =
+  let model =
+    { (classic_with_ints [42]) with
+      classic_mode = ClassicVariable { completion_prefix = Some "fo" };
+      entry = "foo";
+      entry_cursor = 3 }
+  in
+  let model', cmd = update (Key_input (key Input.Key.Escape)) model in
+  check bool "no quit" false (cmd_is_quit cmd);
+  check bool "main mode" true (model'.classic_mode = ClassicMain);
+  check string "entry cleared" "" model'.entry;
+  check int "stack preserved" 42 (top_int model')
+
+let test_classic_escape_cancels_browse_mode () =
+  let model = classic_with_ints [1; 2; 3] in
+  let model, _cmd = update (Key_input (key Input.Key.Up)) model in
+  check bool "browse mode entered" true
+    (match model.classic_mode with ClassicBrowse _ -> true | _ -> false);
+  let model', cmd = update (Key_input (key Input.Key.Escape)) model in
+  check bool "no quit" false (cmd_is_quit cmd);
+  check bool "main mode" true (model'.classic_mode = ClassicMain);
+  check int "stack preserved" 3
+    (Pelzl_engine.stack_length model'.calc.Pelzl_engine.stack)
+
+let test_classic_escape_clears_main_entry () =
+  let model =
+    { (classic_with_ints [42]) with entry = "123"; entry_cursor = 3 }
+  in
+  let model', cmd = update (Key_input (key Input.Key.Escape)) model in
+  check bool "no quit" false (cmd_is_quit cmd);
+  check bool "main mode" true (model'.classic_mode = ClassicMain);
+  check string "entry cleared" "" model'.entry;
+  check int "stack preserved" 42 (top_int model')
+
+let test_repl_abbreviation_removed () =
+  check bool "repl abbreviation missing" true
+    (try ignore (Rcfile.translate_abbrev "repl"); false with Not_found -> true)
 
 let test_raw_ctrl_d_quits_repl_only_when_entry_empty () =
   let model, _cmd = init Repl () in
@@ -434,10 +536,77 @@ let test_classic_abbrev_help_matches_orpie_static_panel () =
       "  pi  undo  view";
       " execute abbreviation : <return>";
       " cancel abbreviation  : '";
+      " repl mode            : Alt-R";
     ];
   check bool "does not show repl abbreviation" false
     (contains_substring text "'repl");
   List.iter (fun row -> check int "row width" 38 (String.length row)) rows
+
+let test_classic_main_help_shows_alt_r () =
+  let rows = Pelzl_view.classic_help_rows (classic_with_ints []) 38 24 in
+  let text = String.concat "\n" rows in
+  check bool "main help shows Alt-R" true
+    (contains_substring text "repl mode               : Alt-R");
+  check bool "main help omits 'repl" false
+    (contains_substring text "'repl")
+
+let test_classic_constant_help_shows_controls () =
+  let model =
+    { (classic_with_ints []) with
+      classic_mode = ClassicAbbrev ConstantAbbrev;
+      entry = "g";
+      entry_cursor = 1 }
+  in
+  let text = String.concat "\n" (Pelzl_view.classic_help_rows model 38 24) in
+  List.iter
+    (fun expected ->
+      check bool expected true (contains_substring text expected))
+    [
+      "Constants:";
+      "Controls:";
+      "execute constant : <return>";
+      "edit name        : <backspace>";
+      "cancel           : Esc";
+      "repl mode        : Alt-R";
+    ]
+
+let test_classic_variable_help_shows_controls () =
+  let model =
+    { (classic_with_ints []) with
+      classic_mode = ClassicVariable { completion_prefix = None };
+      entry = "fo";
+      entry_cursor = 2 }
+  in
+  let text = String.concat "\n" (Pelzl_view.classic_help_rows model 38 24) in
+  List.iter
+    (fun expected ->
+      check bool expected true (contains_substring text expected))
+    [
+      "Variables:";
+      "complete         : <tab>";
+      "enter variable   : <return>";
+      "cancel           : Esc";
+      "repl mode        : Alt-R";
+    ]
+
+let test_classic_browse_help_shows_controls () =
+  let model =
+    { (classic_with_ints [1; 2; 3]) with
+      classic_mode = ClassicBrowse { selected_level = 2; hscroll = 0 } }
+  in
+  let text = String.concat "\n" (Pelzl_view.classic_help_rows model 38 24) in
+  List.iter
+    (fun expected ->
+      check bool expected true (contains_substring text expected))
+    [
+      "Browse:";
+      "Browse Controls:";
+      "move selection   : <up>/<down>";
+      "echo selected    : <return>";
+      "drop/drop-N      : d or \\ / D";
+      "cancel           : q or Esc";
+      "repl mode        : Alt-R";
+    ]
 
 let ui_tests = [
   ("model init creates empty state", `Quick, test_init_empty);
@@ -472,9 +641,24 @@ let ui_tests = [
   ("repl :quit enter returns quit", `Quick, test_repl_colon_quit_enter_returns_quit);
   ("repl :rpn enter requests mode switch", `Quick,
    test_repl_rpn_enter_requests_mode_switch);
+  ("repl Alt-R requests mode switch", `Quick,
+   test_repl_alt_r_requests_mode_switch);
   ("repl hint names :rpn", `Quick, test_repl_hint_names_rpn);
-  ("classic 'repl abbreviation requests mode switch", `Quick,
-   test_classic_repl_abbrev_requests_mode_switch);
+  ("classic Alt-R requests mode switch", `Quick,
+   test_classic_alt_r_requests_mode_switch);
+  ("classic modal Alt-R requests mode switch", `Quick,
+   test_classic_modal_alt_r_requests_mode_switch);
+  ("classic escape cancels abbrev mode", `Quick,
+   test_classic_escape_cancels_abbrev_mode);
+  ("classic escape cancels constant mode", `Quick,
+   test_classic_escape_cancels_constant_mode);
+  ("classic escape cancels variable mode", `Quick,
+   test_classic_escape_cancels_variable_mode);
+  ("classic escape cancels browse mode", `Quick,
+   test_classic_escape_cancels_browse_mode);
+  ("classic escape clears main entry", `Quick,
+   test_classic_escape_clears_main_entry);
+  ("repl abbreviation removed", `Quick, test_repl_abbreviation_removed);
   ("raw Ctrl-D quits repl only when empty", `Quick, test_raw_ctrl_d_quits_repl_only_when_entry_empty);
   ("uppercase Ctrl-D quits repl only when empty", `Quick, test_uppercase_ctrl_d_quits_repl_only_when_entry_empty);
   ("raw Ctrl-Q quits classic", `Quick, test_raw_ctrl_q_quits_classic);
@@ -483,4 +667,11 @@ let ui_tests = [
   ("classic modal help is clipped to panel", `Quick, test_classic_modal_help_is_clipped_to_panel);
   ("classic abbreviation help matches Orpie static panel", `Quick,
    test_classic_abbrev_help_matches_orpie_static_panel);
+  ("classic main help shows Alt-R", `Quick, test_classic_main_help_shows_alt_r);
+  ("classic constant help shows controls", `Quick,
+   test_classic_constant_help_shows_controls);
+  ("classic variable help shows controls", `Quick,
+   test_classic_variable_help_shows_controls);
+  ("classic browse help shows controls", `Quick,
+   test_classic_browse_help_shows_controls);
 ]

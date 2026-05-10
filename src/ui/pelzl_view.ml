@@ -76,7 +76,11 @@ let abbreviation_help_lines =
     "                                      ";
     " execute abbreviation : <return>      ";
     " cancel abbreviation  : '             ";
+    " repl mode            : Alt-R         ";
   ]
+
+let control_help_lines lines =
+  "" :: "Controls:" :: lines
 
 let modal_help_lines model =
   let candidates label names =
@@ -91,12 +95,36 @@ let modal_help_lines model =
   | ClassicAbbrev OperationAbbrev -> abbreviation_help_lines
   | ClassicAbbrev ConstantAbbrev ->
       candidates "Constants" !Rcfile.constant_symbols
+      @ control_help_lines [
+          "  execute constant : <return>";
+          "  edit name        : <backspace>";
+          "  cancel           : Esc";
+          "  repl mode        : Alt-R";
+        ]
   | ClassicVariable _ ->
       candidates "Variables" (variable_names model.calc)
+      @ control_help_lines [
+          "  complete         : <tab>";
+          "  enter variable   : <return>";
+          "  edit name        : <backspace>";
+          "  cancel           : Esc";
+          "  repl mode        : Alt-R";
+        ]
   | ClassicBrowse { selected_level; hscroll } ->
       [ ""; "Browse:";
         Printf.sprintf "  level: %d" selected_level;
-        Printf.sprintf "  hscroll: %d" hscroll ]
+        Printf.sprintf "  hscroll: %d" hscroll;
+        "";
+        "Browse Controls:";
+        "  move selection   : <up>/<down>";
+        "  scroll entry     : <left>/<right>";
+        "  echo selected    : <return>";
+        "  view/edit        : v / E";
+        "  drop/drop-N      : d or \\ / D";
+        "  keep/keep-N      : k / K";
+        "  roll down/up     : r / R";
+        "  cancel           : q or Esc";
+        "  repl mode        : Alt-R" ]
 
 let entry_prefix = function
   | ClassicMain | ClassicBrowse _ -> ""
@@ -132,14 +160,14 @@ let classic_help_rows model left_width height =
     "  scientific notation     : <space>   ";
     "  abbreviation entry mode : '         ";
     "  stack browsing mode     : <up>      ";
-    "  repl mode               : 'repl RET ";
+    "  repl mode               : Alt-R     ";
     "  refresh display         : C-L       ";
     "  quit                    : Q         ";
   ] in
   let lines =
     match model.classic_mode with
-    | ClassicAbbrev OperationAbbrev -> header_lines @ abbreviation_help_lines
-    | _ -> header_lines @ main_lines @ modal_help_lines model
+    | ClassicMain -> header_lines @ main_lines
+    | _ -> header_lines @ modal_help_lines model
   in
   lines
   |> fit_lines left_width height
@@ -359,7 +387,7 @@ let preview_for calc s : string option =
          | Error _ -> None)
 
 let repl_hint_text =
-  "  ↑↓ history  :rpn  :help  :vars  :quit  Ctrl-D exit"
+  "  ↑↓ history  :rpn/Alt-R  :help  :vars  :quit  Ctrl-D exit"
 
 let repl_view model =
   let prompt =
