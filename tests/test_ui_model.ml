@@ -113,6 +113,12 @@ let ctrl_char ch =
 let plain_char ch =
   key (Input.Key.Char (Uchar.of_char ch))
 
+let contains_substring haystack needle =
+  try
+    ignore (Str.search_forward (Str.regexp_string needle) haystack 0);
+    true
+  with Not_found -> false
+
 let stack_with_ints ints stack =
   List.fold_left
     (fun stack n ->
@@ -261,6 +267,12 @@ let test_uppercase_ctrl_q_quits_repl_even_with_entry () =
   let _model', cmd = update (Key_input (ctrl_char 'Q')) model in
   check bool "quit command" true (cmd_is_quit cmd)
 
+let test_repl_colon_quit_enter_returns_quit () =
+  let model, _cmd = init Repl () in
+  let model = { model with entry = ":quit"; entry_cursor = 5 } in
+  let _model', cmd = update (Key_input (key Input.Key.Enter)) model in
+  check bool "quit command" true (cmd_is_quit cmd)
+
 let test_raw_ctrl_d_quits_repl_only_when_entry_empty () =
   let model, _cmd = init Repl () in
   let _model', cmd = update (Key_input (raw_ctrl_char 0x04)) model in
@@ -283,6 +295,50 @@ let test_raw_ctrl_q_quits_classic () =
   let model, _cmd = init Classic () in
   let _model', cmd = update (Key_input (raw_ctrl_char 0x11)) model in
   check bool "classic quit command" true (cmd_is_quit cmd)
+
+let test_classic_view_rows_are_fixed_width () =
+  let model = { (classic_with_ints [1; 2; 3]) with height = 7 } in
+  let help_rows = Pelzl_view.classic_help_rows model 38 5 in
+  let stack_rows = Pelzl_view.classic_stack_rows model 42 5 in
+  check int "help rows" 5 (List.length help_rows);
+  check int "stack rows" 5 (List.length stack_rows);
+  List.iter
+    (fun row ->
+      check int "help row width" 38 (String.length row);
+      check bool "help row no newline" false (String.contains row '\n'))
+    help_rows;
+  List.iter
+    (fun (_selected, row) ->
+      check int "stack row width" 42 (String.length row);
+      check bool "stack row no newline" false (String.contains row '\n'))
+    stack_rows
+
+let test_classic_browse_view_marks_one_fixed_row () =
+  let model = classic_with_ints [1; 2; 3] in
+  let model, _ = update (Key_input (key Input.Key.Up)) model in
+  let model, _ = update (Key_input (key Input.Key.Up)) model in
+  let rows = Pelzl_view.classic_stack_rows model 42 5 in
+  let selected =
+    rows |> List.filter (fun (is_selected, _row) -> is_selected)
+  in
+  check int "one selected row" 1 (List.length selected);
+  match selected with
+  | [(_selected, row)] ->
+      check bool "selected row is level 2" true (contains_substring row "|  2:");
+      check bool "selected row includes value" true (contains_substring row "# 2`d")
+  | _ -> fail "expected one selected row"
+
+let test_classic_modal_help_is_clipped_to_panel () =
+  let model =
+    { (classic_with_ints []) with
+      height = 10;
+      classic_mode = ClassicAbbrev OperationAbbrev;
+      entry = "s";
+      entry_cursor = 1 }
+  in
+  let rows = Pelzl_view.classic_help_rows model 38 8 in
+  check int "row count" 8 (List.length rows);
+  List.iter (fun row -> check int "row width" 38 (String.length row)) rows
 
 let ui_tests = [
   ("model init creates empty state", `Quick, test_init_empty);
@@ -312,7 +368,11 @@ let ui_tests = [
   ("preview does not mutate stack", `Quick, test_preview_does_not_mutate_stack);
   ("raw Ctrl-Q quits repl even with entry", `Quick, test_raw_ctrl_q_quits_repl_even_with_entry);
   ("uppercase Ctrl-Q quits repl even with entry", `Quick, test_uppercase_ctrl_q_quits_repl_even_with_entry);
+  ("repl :quit enter returns quit", `Quick, test_repl_colon_quit_enter_returns_quit);
   ("raw Ctrl-D quits repl only when empty", `Quick, test_raw_ctrl_d_quits_repl_only_when_entry_empty);
   ("uppercase Ctrl-D quits repl only when empty", `Quick, test_uppercase_ctrl_d_quits_repl_only_when_entry_empty);
   ("raw Ctrl-Q quits classic", `Quick, test_raw_ctrl_q_quits_classic);
+  ("classic view rows are fixed width", `Quick, test_classic_view_rows_are_fixed_width);
+  ("classic browse view marks one fixed row", `Quick, test_classic_browse_view_marks_one_fixed_row);
+  ("classic modal help is clipped to panel", `Quick, test_classic_modal_help_is_clipped_to_panel);
 ]

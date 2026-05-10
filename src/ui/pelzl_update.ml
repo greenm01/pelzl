@@ -971,7 +971,7 @@ let update ?(editor_runner = default_editor_runner) msg model =
         | Enter ->
             let model', should_quit = submit_repl model model.entry in
             let model', cmd = take_pending model' in
-            if should_quit then model', Mosaic.Cmd.perform (fun _ -> exit 0)
+            if should_quit then model', quit_cmd
             else model', cmd
         | Backspace ->
             delete_before_cursor model, Mosaic.Cmd.none

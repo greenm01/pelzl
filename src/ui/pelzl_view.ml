@@ -39,18 +39,33 @@ let variable_names calc =
 let matching_names prefix names =
   names |> List.filter (starts_with ~prefix) |> take 10
 
-let modal_help model =
+let clip_string width s =
+  if String.length s <= width then s else String.sub s 0 width
+
+let fit_string width s =
+  let s = clip_string width s in
+  s ^ String.make (max 0 (width - String.length s)) ' '
+
+let fit_lines width height lines =
+  let rec take n xs acc =
+    if n <= 0 then List.rev acc
+    else
+      match xs with
+      | [] -> take (n - 1) [] (String.make width ' ' :: acc)
+      | x :: rest -> take (n - 1) rest (fit_string width x :: acc)
+  in
+  take height lines []
+
+let modal_help_lines model =
   let candidates label names =
     let matches = matching_names model.entry names in
-    let body =
-      match matches with
-      | [] -> "  no matches\n"
-      | xs -> String.concat "" (List.map (Printf.sprintf "  %s\n") xs)
-    in
-    Printf.sprintf "\n%s:\n%s" label body
+    "" :: (label ^ ":") ::
+    (match matches with
+     | [] -> [ "  no matches" ]
+     | xs -> List.map (Printf.sprintf "  %s") xs)
   in
   match model.classic_mode with
-  | ClassicMain -> ""
+  | ClassicMain -> []
   | ClassicAbbrev OperationAbbrev ->
       candidates "Abbreviations" !Rcfile.abbrev_commands
   | ClassicAbbrev ConstantAbbrev ->
@@ -58,7 +73,9 @@ let modal_help model =
   | ClassicVariable _ ->
       candidates "Variables" (variable_names model.calc)
   | ClassicBrowse { selected_level; hscroll } ->
-      Printf.sprintf "\nBrowse:\n  level: %d\n  hscroll: %d\n" selected_level hscroll
+      [ ""; "Browse:";
+        Printf.sprintf "  level: %d" selected_level;
+        Printf.sprintf "  hscroll: %d" hscroll ]
 
 let entry_prefix = function
   | ClassicMain | ClassicBrowse _ -> ""
@@ -66,80 +83,90 @@ let entry_prefix = function
   | ClassicAbbrev ConstantAbbrev -> "C "
   | ClassicVariable _ -> "@ "
 
-let classic_view model =
-  let view_width = 80 in
-  let max_stack_lines = max 1 (model.height - 2) in
-  let left_width = 38 in
-  let stack_width = view_width - left_width in
+let classic_help_rows model left_width height =
+  let m = Pelzl_engine.get_modes model.calc in
+  let angle_str = match m.angle with Rad -> "RAD" | Deg -> "DEG" in
+  let base_str = match m.base with Bin -> "BIN" | Oct -> "OCT" | Hex -> "HEX" | Dec -> "DEC" in
+  let complex_str = match m.complex with Rect -> "REC" | Polar -> "POL" in
+  [
+    Printf.sprintf "Pelzl v1.0 -- %-24s " model.slogan;
+    "--------------------------------------";
+    "Calculator Modes:                     ";
+    Printf.sprintf "  angle: %-3s  base: %-3s  complex: %-3s " angle_str base_str complex_str;
+    "                                      ";
+    "Common Operations:                    ";
+    "  enter    : <return>                 ";
+    "  drop     : \\                        ";
+    "  swap     : <pagedown>               ";
+    "  backspace: \\177                     ";
+    "  add      : +                        ";
+    "  subtract : -                        ";
+    "  multiply : *                        ";
+    "  divide   : /                        ";
+    "  y^x      : ^                        ";
+    "  negation : n                        ";
+    "Miscellaneous:                        ";
+    "  scientific notation     : <space>   ";
+    "  abbreviation entry mode : '         ";
+    "  stack browsing mode     : <up>      ";
+    "  refresh display         : C-L       ";
+    "  quit                    : Q         ";
+  ]
+  @ modal_help_lines model
+  |> fit_lines left_width height
+
+let classic_stack_rows model stack_width height =
   let selected =
     match model.classic_mode with
     | ClassicBrowse { selected_level; hscroll } -> Some (selected_level, hscroll)
     | _ -> None
   in
+  List.init height (fun i ->
+    let idx = height - i in
+    let selected_line =
+      match selected with
+      | Some (level, _) -> level = idx
+      | None -> false
+    in
+    let raw = Pelzl_engine.get_display_line idx model.calc in
+    let line =
+      match selected with
+      | Some (_, hscroll) when selected_line -> scroll_string hscroll raw
+      | _ -> raw
+    in
+    let prefix = Printf.sprintf "| %2d:" idx in
+    let text =
+      if line = "" then prefix
+      else
+        let pad_len = stack_width - String.length prefix - String.length line in
+        let pad = if pad_len > 0 then String.make pad_len ' ' else " " in
+        prefix ^ pad ^ line
+    in
+    selected_line, fit_string stack_width text)
+
+let classic_view model =
+  let view_width = 80 in
+  let max_stack_lines = max 1 (model.height - 2) in
+  let left_width = 38 in
+  let stack_width = view_width - left_width in
   let selected_style = Mosaic.Ansi.Style.make ~inverse:true () in
   let stack_nodes =
-    List.init max_stack_lines (fun i ->
-      let idx = max_stack_lines - i in
-      let selected_line =
-        match selected with
-        | Some (level, _) -> level = idx
-        | None -> false
-      in
-      let line =
-        let raw = Pelzl_engine.get_display_line idx model.calc in
-        match selected with
-        | Some (_, hscroll) when selected_line -> scroll_string hscroll raw
-        | _ -> raw
-      in
-      let num_str = Printf.sprintf "%2d:" idx in
-      let bar = "| " in
-      let prefix = bar ^ num_str in
-      let text =
-        if line = "" then prefix
-        else
-          let pad_len = stack_width - String.length prefix - String.length line in
-          let pad = if pad_len > 0 then String.make pad_len ' ' else " " in
-          prefix ^ pad ^ line
-      in
-      if selected_line then Mosaic.text ~style:selected_style (text ^ "\n")
-      else Mosaic.text (text ^ "\n"))
+    classic_stack_rows model stack_width max_stack_lines
+    |> List.map (fun (selected_line, text) ->
+      if selected_line then Mosaic.text ~style:selected_style text
+      else Mosaic.text text)
   in
-  let m = Pelzl_engine.get_modes model.calc in
-  let angle_str = match m.angle with Rad -> "RAD" | Deg -> "DEG" in
-  let base_str = match m.base with Bin -> "BIN" | Oct -> "OCT" | Hex -> "HEX" | Dec -> "DEC" in
-  let complex_str = match m.complex with Rect -> "REC" | Polar -> "POL" in
-  let help_text =
-    (Printf.sprintf "Pelzl v1.0 -- %-24s \n" model.slogan) ^
-    "--------------------------------------\n" ^
-    "Calculator Modes:                     \n" ^
-    (Printf.sprintf "  angle: %-3s  base: %-3s  complex: %-3s \n" angle_str base_str complex_str) ^
-    "                                      \n" ^
-    "Common Operations:                    \n" ^
-    "  enter    : <return>                 \n" ^
-    "  drop     : \\                        \n" ^
-    "  swap     : <pagedown>               \n" ^
-    "  backspace: \\177                     \n" ^
-    "  add      : +                        \n" ^
-    "  subtract : -                        \n" ^
-    "  multiply : *                        \n" ^
-    "  divide   : /                        \n" ^
-    "  y^x      : ^                        \n" ^
-    "  negation : n                        \n" ^
-    "Miscellaneous:                        \n" ^
-    "  scientific notation     : <space>   \n" ^
-    "  abbreviation entry mode : '         \n" ^
-    "  stack browsing mode     : <up>      \n" ^
-    "  refresh display         : C-L       \n" ^
-    "  quit                    : Q         " ^
-    modal_help model
+  let help_nodes =
+    classic_help_rows model left_width max_stack_lines
+    |> List.map Mosaic.text
   in
   let left_pane =
-    Mosaic.box ~display:Mosaic.Display.Block
+    Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Column
       ~size:(Mosaic.size_wh (Mosaic.px 38) (Mosaic.pct 100))
-      [ Mosaic.text help_text ]
+      help_nodes
   in
   let right_pane =
-    Mosaic.box ~display:Mosaic.Display.Block
+    Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Column
       ~size:(Mosaic.size_wh (Mosaic.px stack_width) (Mosaic.pct 100))
       stack_nodes
   in

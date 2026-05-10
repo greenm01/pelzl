@@ -29,4 +29,11 @@ let () =
       ~finally:(fun () -> Matrix.resume matrix)
       (fun () -> ignore (Sys.command (!(Rcfile.editor) ^ " " ^ Filename.quote path)))
   in
-  Mosaic.run ~matrix (Pelzl_app.app ~editor_runner !mode)
+  Mosaic.run ~matrix (Pelzl_app.app ~editor_runner !mode);
+  if mode_kind = `Primary then begin
+    let terminal = Matrix.terminal matrix in
+    let cursor = Matrix.Terminal.cursor_position terminal in
+    Matrix.Terminal.move_cursor terminal ~row:cursor.y ~col:1 ~visible:true;
+    Matrix.Terminal.send terminal
+      Matrix.Ansi.(to_string reset ^ to_string erase_below_cursor)
+  end
