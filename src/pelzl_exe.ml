@@ -11,6 +11,18 @@ let usage_msg = "Pelzl -- a calculator for the console"
 
 let () =
   Arg.parse speclist (fun _ -> ()) usage_msg;
+  let clear_for_mode_switch matrix =
+    let terminal = Matrix.terminal matrix in
+    Matrix.Terminal.send terminal
+      Matrix.Ansi.(to_string reset ^ to_string clear_and_home)
+  in
+  let cleanup_primary_exit matrix =
+    let terminal = Matrix.terminal matrix in
+    let cursor = Matrix.Terminal.cursor_position terminal in
+    Matrix.Terminal.move_cursor terminal ~row:cursor.y ~col:1 ~visible:true;
+    Matrix.Terminal.send terminal
+      Matrix.Ansi.(to_string reset ^ to_string erase_below_cursor)
+  in
   let rec run mode initial_model =
   let mode_kind =
     match mode with
@@ -36,15 +48,11 @@ let () =
   in
   Mosaic.run ~matrix
     (Pelzl_app.app ~editor_runner ~on_mode_switch ?initial_model mode);
-  if mode_kind = `Primary then begin
-    let terminal = Matrix.terminal matrix in
-    let cursor = Matrix.Terminal.cursor_position terminal in
-    Matrix.Terminal.move_cursor terminal ~row:cursor.y ~col:1 ~visible:true;
-    Matrix.Terminal.send terminal
-      Matrix.Ansi.(to_string reset ^ to_string erase_below_cursor)
-  end;
   match !requested_mode with
-  | None -> ()
-  | Some (next_mode, model) -> run next_mode (Some model)
+  | None ->
+      if mode_kind = `Primary then cleanup_primary_exit matrix
+  | Some (next_mode, model) ->
+      clear_for_mode_switch matrix;
+      run next_mode (Some model)
   in
   run !mode None

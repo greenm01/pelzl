@@ -41,6 +41,12 @@ let test_meta_quit () =
       | `Unknown -> Format.pp_print_string ppf "unknown"))
     ":quit" `Quit (handle_meta m ":quit")
 
+let test_meta_exit () =
+  let m = model_repl () in
+  match handle_meta m ":exit" with
+  | `Quit -> ()
+  | _ -> fail "expected `Quit"
+
 let test_meta_rpn () =
   let m = model_repl () in
   match handle_meta m ":rpn" with
@@ -59,8 +65,12 @@ let test_meta_help () =
   match handle_meta m ":help" with
   | `Commit (m', Repl_msg txt) ->
       check string "entry cleared" "" m'.entry;
-      check bool "contains :rpn" true (contains_substring txt ":rpn");
-      check bool "contains Alt-R" true (contains_substring txt "Alt-R");
+      check bool "omits :rpn" false (contains_substring txt ":rpn");
+      check bool "contains [Alt-R] RPN" true
+        (contains_substring txt "[Alt-R] RPN");
+      check bool "contains [Ctrl-D] Quit" true
+        (contains_substring txt "[Ctrl-D] Quit");
+      check bool "omits :exit" false (contains_substring txt ":exit");
       check bool "does not contain :orpie" false (contains_substring txt ":orpie")
   | _ -> fail "expected `Commit with Repl_msg"
 
@@ -216,6 +226,7 @@ let test_bind_ans () =
 let repl_history_tests = [
   ("trim_ws strips spaces and tabs", `Quick, test_trim_ws);
   ("meta :quit returns `Quit", `Quick, test_meta_quit);
+  ("meta :exit returns `Quit", `Quick, test_meta_exit);
   ("meta :rpn requests classic switch", `Quick, test_meta_rpn);
   ("meta :orpie is unknown", `Quick, test_meta_orpie_is_unknown);
   ("meta :help returns help message", `Quick, test_meta_help);

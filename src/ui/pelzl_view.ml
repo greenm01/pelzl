@@ -58,7 +58,6 @@ let fit_lines width height lines =
 
 let abbreviation_help_lines =
   [
-    "                                      ";
     "Abbreviations:                        ";
     " Common Functions:                    ";
     "  sin  asin  cos  acos  tan  atan     ";
@@ -77,6 +76,7 @@ let abbreviation_help_lines =
     " execute abbreviation : <return>      ";
     " cancel abbreviation  : '             ";
     " repl mode            : Alt-R         ";
+    " quit                 : Ctrl-D        ";
   ]
 
 let control_help_lines lines =
@@ -100,6 +100,7 @@ let modal_help_lines model =
           "  edit name        : <backspace>";
           "  cancel           : Esc";
           "  repl mode        : Alt-R";
+          "  quit             : Ctrl-D";
         ]
   | ClassicVariable _ ->
       candidates "Variables" (variable_names model.calc)
@@ -109,6 +110,7 @@ let modal_help_lines model =
           "  edit name        : <backspace>";
           "  cancel           : Esc";
           "  repl mode        : Alt-R";
+          "  quit             : Ctrl-D";
         ]
   | ClassicBrowse { selected_level; hscroll } ->
       [ ""; "Browse:";
@@ -124,7 +126,8 @@ let modal_help_lines model =
         "  keep/keep-N      : k / K";
         "  roll down/up     : r / R";
         "  cancel           : q or Esc";
-        "  repl mode        : Alt-R" ]
+        "  repl mode        : Alt-R";
+        "  quit             : Ctrl-D" ]
 
 let entry_prefix = function
   | ClassicMain | ClassicBrowse _ -> ""
@@ -162,7 +165,7 @@ let classic_help_rows model left_width height =
     "  stack browsing mode     : <up>      ";
     "  repl mode               : Alt-R     ";
     "  refresh display         : C-L       ";
-    "  quit                    : Q         ";
+    "  quit                    : Ctrl-D/Q  ";
   ] in
   let lines =
     match model.classic_mode with
@@ -387,7 +390,7 @@ let preview_for calc s : string option =
          | Error _ -> None)
 
 let repl_hint_text =
-  "  ↑↓ history  :rpn/Alt-R  :help  :vars  :quit  Ctrl-D exit"
+  "  ↑↓ history  [Alt-R] RPN  :help  :vars  [Ctrl-D] Quit"
 
 let repl_view model =
   let prompt =

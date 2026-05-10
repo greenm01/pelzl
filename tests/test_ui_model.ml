@@ -331,11 +331,17 @@ let test_repl_alt_r_requests_mode_switch () =
      | Some (Classic, m) -> m.ui_mode = Classic && top_int m = 42
      | _ -> false)
 
-let test_repl_hint_names_rpn () =
-  check bool "hint contains :rpn" true
+let test_repl_hint_names_key_actions () =
+  check bool "hint contains Alt-R RPN" true
+    (contains_substring Pelzl_view.repl_hint_text "[Alt-R] RPN");
+  check bool "hint contains Ctrl-D Quit" true
+    (contains_substring Pelzl_view.repl_hint_text "[Ctrl-D] Quit");
+  check bool "hint omits :rpn" false
     (contains_substring Pelzl_view.repl_hint_text ":rpn");
-  check bool "hint contains Alt-R" true
-    (contains_substring Pelzl_view.repl_hint_text "Alt-R");
+  check bool "hint omits :quit" false
+    (contains_substring Pelzl_view.repl_hint_text ":quit");
+  check bool "hint omits :exit" false
+    (contains_substring Pelzl_view.repl_hint_text ":exit");
   check bool "hint omits :orpie" false
     (contains_substring Pelzl_view.repl_hint_text ":orpie")
 
@@ -466,6 +472,36 @@ let test_raw_ctrl_q_quits_classic () =
   let _model', cmd = update (Key_input (raw_ctrl_char 0x11)) model in
   check bool "classic quit command" true (cmd_is_quit cmd)
 
+let test_raw_ctrl_d_quits_classic_with_entry () =
+  let model, _cmd = init Classic () in
+  let model = { model with entry = "123"; entry_cursor = 3 } in
+  let _model', cmd = update (Key_input (raw_ctrl_char 0x04)) model in
+  check bool "classic quit command" true (cmd_is_quit cmd)
+
+let test_raw_ctrl_d_quits_classic_modals () =
+  let assert_quits label model =
+    let _model', cmd = update (Key_input (raw_ctrl_char 0x04)) model in
+    check bool label true (cmd_is_quit cmd)
+  in
+  assert_quits "abbrev"
+    { (classic_with_ints [42]) with
+      classic_mode = ClassicAbbrev OperationAbbrev;
+      entry = "sin";
+      entry_cursor = 3 };
+  assert_quits "constant"
+    { (classic_with_ints [42]) with
+      classic_mode = ClassicAbbrev ConstantAbbrev;
+      entry = "g";
+      entry_cursor = 1 };
+  assert_quits "variable"
+    { (classic_with_ints [42]) with
+      classic_mode = ClassicVariable { completion_prefix = None };
+      entry = "foo";
+      entry_cursor = 3 };
+  assert_quits "browse"
+    { (classic_with_ints [1; 2; 3]) with
+      classic_mode = ClassicBrowse { selected_level = 2; hscroll = 0 } }
+
 let test_classic_view_rows_are_fixed_width () =
   let model = { (classic_with_ints [1; 2; 3]) with height = 7 } in
   let help_rows = Pelzl_view.classic_help_rows model 38 5 in
@@ -537,6 +573,7 @@ let test_classic_abbrev_help_matches_orpie_static_panel () =
       " execute abbreviation : <return>";
       " cancel abbreviation  : '";
       " repl mode            : Alt-R";
+      " quit                 : Ctrl-D";
     ];
   check bool "does not show repl abbreviation" false
     (contains_substring text "'repl");
@@ -547,6 +584,8 @@ let test_classic_main_help_shows_alt_r () =
   let text = String.concat "\n" rows in
   check bool "main help shows Alt-R" true
     (contains_substring text "repl mode               : Alt-R");
+  check bool "main help shows Ctrl-D quit" true
+    (contains_substring text "quit                    : Ctrl-D/Q");
   check bool "main help omits 'repl" false
     (contains_substring text "'repl")
 
@@ -568,6 +607,7 @@ let test_classic_constant_help_shows_controls () =
       "edit name        : <backspace>";
       "cancel           : Esc";
       "repl mode        : Alt-R";
+      "quit             : Ctrl-D";
     ]
 
 let test_classic_variable_help_shows_controls () =
@@ -587,6 +627,7 @@ let test_classic_variable_help_shows_controls () =
       "enter variable   : <return>";
       "cancel           : Esc";
       "repl mode        : Alt-R";
+      "quit             : Ctrl-D";
     ]
 
 let test_classic_browse_help_shows_controls () =
@@ -606,6 +647,7 @@ let test_classic_browse_help_shows_controls () =
       "drop/drop-N      : d or \\ / D";
       "cancel           : q or Esc";
       "repl mode        : Alt-R";
+      "quit             : Ctrl-D";
     ]
 
 let ui_tests = [
@@ -643,7 +685,7 @@ let ui_tests = [
    test_repl_rpn_enter_requests_mode_switch);
   ("repl Alt-R requests mode switch", `Quick,
    test_repl_alt_r_requests_mode_switch);
-  ("repl hint names :rpn", `Quick, test_repl_hint_names_rpn);
+  ("repl hint names key actions", `Quick, test_repl_hint_names_key_actions);
   ("classic Alt-R requests mode switch", `Quick,
    test_classic_alt_r_requests_mode_switch);
   ("classic modal Alt-R requests mode switch", `Quick,
@@ -662,6 +704,10 @@ let ui_tests = [
   ("raw Ctrl-D quits repl only when empty", `Quick, test_raw_ctrl_d_quits_repl_only_when_entry_empty);
   ("uppercase Ctrl-D quits repl only when empty", `Quick, test_uppercase_ctrl_d_quits_repl_only_when_entry_empty);
   ("raw Ctrl-Q quits classic", `Quick, test_raw_ctrl_q_quits_classic);
+  ("raw Ctrl-D quits classic with entry", `Quick,
+   test_raw_ctrl_d_quits_classic_with_entry);
+  ("raw Ctrl-D quits classic modals", `Quick,
+   test_raw_ctrl_d_quits_classic_modals);
   ("classic view rows are fixed width", `Quick, test_classic_view_rows_are_fixed_width);
   ("classic browse view marks one fixed row", `Quick, test_classic_browse_view_marks_one_fixed_row);
   ("classic modal help is clipped to panel", `Quick, test_classic_modal_help_is_clipped_to_panel);

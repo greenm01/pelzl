@@ -569,10 +569,9 @@ let meta_help_text =
     "  numbers    : 1.5e3, ffh, 101b, 17o, 42d      ";
     "  variables  : name = expr   (also 'ans')      ";
     "  history    : up/down arrows recall lines     ";
-    "  commands   : :rpn :vars :purge NAME :help    ";
-    "             : :quit                           ";
-    "  modes      : Alt-R toggles REPL/RPN          ";
-    "  exit       : :quit, Ctrl-D (empty), or Ctrl-Q";
+    "  commands   : :vars :purge NAME :help         ";
+    "  modes      : [Alt-R] RPN                     ";
+    "  quit       : [Ctrl-D] Quit, Ctrl-Q           ";
   ]
 
 let format_vars calc =
@@ -1003,7 +1002,8 @@ let update ?(editor_runner = default_editor_runner)
       if is_alt_r_key data then
         request_mode_toggle on_mode_switch model
       else if is_ctrl_char data 'q'
-         || (is_ctrl_char data 'd' && model.entry = "")
+         || (is_ctrl_char data 'd'
+             && (model.ui_mode = Classic || model.entry = ""))
       then model, quit_cmd
       else if model.ui_mode = Repl then
         match data.key with
