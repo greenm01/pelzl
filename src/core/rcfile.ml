@@ -407,6 +407,8 @@ let operation_of_string command_str =
    |"browse_scroll_right"           -> (Browse ScrollRight)
    |"browse_prev_line"              -> (Browse PrevLine)
    |"browse_next_line"              -> (Browse NextLine)
+   |"browse_rolldown"               -> (Browse RollDown)
+   |"browse_rollup"                 -> (Browse RollUp)
    |"browse_echo"                   -> (Browse Echo)
    |"browse_view"                   -> (Browse ViewEntry)
    |"browse_drop"                   -> (Browse Drop1)

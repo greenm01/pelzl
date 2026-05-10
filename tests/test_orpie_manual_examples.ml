@@ -1,0 +1,307 @@
+open Alcotest
+open Pelzl_engine
+open Pelzl_model
+
+let eps = 1e-9
+
+let rc_loaded = ref false
+
+let ensure_orpie_defaults () =
+  if not !rc_loaded then begin
+    ignore (Pelzl_model.init Pelzl_model.Classic ());
+    let candidates =
+      [
+        "etc/pelzlrc";
+        "../etc/pelzlrc";
+        "../../etc/pelzlrc";
+        "../../../etc/pelzlrc";
+      ]
+    in
+    let rcfile =
+      match List.find_opt Sys.file_exists candidates with
+      | Some path -> path
+      | None -> fail "could not locate etc/pelzlrc for manual example tests"
+    in
+    Units.unit_table := Units.empty_unit_table;
+    Rcfile.process_rcfile (Some rcfile);
+    rc_loaded := true
+  end
+
+let parse_deg s =
+  ensure_orpie_defaults ();
+  Txtin_parser.decode_data_deg Txtin_lexer.token (Lexing.from_string s)
+
+let parse_rad s =
+  ensure_orpie_defaults ();
+  Txtin_parser.decode_data_rad Txtin_lexer.token (Lexing.from_string s)
+
+let one_deg s =
+  match parse_deg s with
+  | [x] -> x
+  | xs -> failf "expected one parsed value, got %d" (List.length xs)
+
+let render_data ?(modes = empty_state.modes) data =
+  let st =
+    { empty_state with
+      modes;
+      stack = stack_push data empty_state.stack }
+  in
+  String.trim (get_display_line 1 st)
+
+let check_render label expected data =
+  check string label expected (render_data data)
+
+let check_float label expected = function
+  | RpcFloatUnit (f, _) -> check (float eps) label expected f
+  | _ -> fail (label ^ ": expected real")
+
+let check_int label expected = function
+  | RpcInt i -> check int label expected (Big_int.int_of_big_int i)
+  | _ -> fail (label ^ ": expected integer")
+
+let check_complex label expected_re expected_im = function
+  | RpcComplexUnit (c, _) ->
+      check (float eps) (label ^ " real") expected_re c.Complex.re;
+      check (float eps) (label ^ " imag") expected_im c.Complex.im
+  | _ -> fail (label ^ ": expected complex")
+
+let contains_substring haystack needle =
+  try
+    ignore (Str.search_forward (Str.regexp_string needle) haystack 0);
+    true
+  with Not_found -> false
+
+let check_fmat label expected = function
+  | RpcFloatMatrixUnit (m, _) ->
+      let rows, cols = Gsl.Matrix.dims m in
+      check int (label ^ " rows") (Array.length expected) rows;
+      check int (label ^ " cols") (Array.length expected.(0)) cols;
+      Array.iteri
+        (fun r row ->
+          Array.iteri
+            (fun c expected_value ->
+              check (float eps)
+                (Printf.sprintf "%s[%d,%d]" label r c)
+                expected_value (Gsl.Matrix.get m r c))
+            row)
+        expected
+  | _ -> fail (label ^ ": expected real matrix")
+
+let check_cmat label expected = function
+  | RpcComplexMatrixUnit (m, _) ->
+      let rows, cols = Gsl.Matrix_complex.dims m in
+      check int (label ^ " rows") (Array.length expected) rows;
+      check int (label ^ " cols") (Array.length expected.(0)) cols;
+      Array.iteri
+        (fun r row ->
+          Array.iteri
+            (fun c expected_value ->
+              let got = Gsl.Matrix_complex.get m r c in
+              check (float eps)
+                (Printf.sprintf "%s[%d,%d].re" label r c)
+                expected_value.Complex.re got.Complex.re;
+              check (float eps)
+                (Printf.sprintf "%s[%d,%d].im" label r c)
+                expected_value.Complex.im got.Complex.im)
+            row)
+        expected
+  | _ -> fail (label ^ ": expected complex matrix")
+
+let c re im = { Complex.re; im }
+
+let key ?(modifier = Input.Key.no_modifier) k =
+  Mosaic.Event.Key.of_input (Input.Key.make ~modifier k)
+
+let plain_char ch =
+  key (Input.Key.Char (Uchar.of_char ch))
+
+let classic_key ch model =
+  fst (Pelzl_update.update (Pelzl_model.Key_input (plain_char ch)) model)
+
+let classic_enter model =
+  fst (Pelzl_update.update (Pelzl_model.Key_input (key Input.Key.Enter)) model)
+
+let classic_type s model =
+  String.fold_left (fun model ch -> classic_key ch model) model s
+
+let top_int model =
+  match stack_peek 1 model.Pelzl_model.calc.stack with
+  | RpcInt i -> Big_int.int_of_big_int i
+  | RpcFloatUnit (f, _) -> int_of_float f
+  | _ -> fail "expected numeric top of stack"
+
+let test_overview_addition_example () =
+  let model, _ = Pelzl_model.init Pelzl_model.Classic () in
+  let model = { model with entry = "1"; entry_cursor = 1 } |> classic_enter in
+  let model = { model with entry = "2"; entry_cursor = 1 } |> classic_enter in
+  let model = classic_key '+' model in
+  check int "1<enter>2<enter>+" 3 (top_int model)
+
+let test_real_number_entry_examples () =
+  check_float "1.23<enter>" 1.23 (one_deg "1.23");
+  check_float "1.23<space>23n<enter>" 1.23e-23 (one_deg "1.23e-23");
+  check_float "1.23n<space>23<enter>" (-1.23e23) (one_deg "-1.23e23")
+
+let test_complex_entry_examples () =
+  check_complex "(1.23, 4.56<enter>" 1.23 4.56 (one_deg "(1.23, 4.56)");
+  check_complex "(0.7072<45<enter>" 0.500065915655126 0.500065915655126
+    (one_deg "(0.7072 <45)");
+  check_complex "(1.23n,4.56<space>10<enter>" (-1.23) 45_600_000_000.
+    (one_deg "(-1.23,4.56e10)")
+
+let test_matrix_entry_examples () =
+  check_fmat "[1,2[3,4<enter>"
+    [| [| 1.; 2. |]; [| 3.; 4. |] |]
+    (one_deg "[[1,2][3,4]]");
+  check_fmat "[1.2<space>10,0[3n,5n<enter>"
+    [| [| 12_000_000_000.; 0. |]; [| -3.; -5. |] |]
+    (one_deg "[[1.2e10,0][-3,-5]]");
+  check_cmat "[(1,2,3,4[5,6,7,8<enter>"
+    [| [| c 1. 2.; c 3. 4. |]; [| c 5. 6.; c 7. 8. |] |]
+    (one_deg "[[(1,2),(3,4)][(5,6),(7,8)]]")
+
+let test_classic_bracket_key_matrix_entry_example () =
+  let model, _ = Pelzl_model.init Pelzl_model.Classic () in
+  let model = model |> classic_type "[1,2[3,4" |> classic_enter in
+  match stack_peek 1 model.Pelzl_model.calc.stack with
+  | RpcFloatMatrixUnit (m, _) ->
+      let rows, cols = Gsl.Matrix.dims m in
+      check int "rows" 2 rows;
+      check int "cols" 2 cols;
+      check (float eps) "matrix[0,0]" 1. (Gsl.Matrix.get m 0 0);
+      check (float eps) "matrix[1,1]" 4. (Gsl.Matrix.get m 1 1)
+  | _ -> fail "[ key entry should push a real matrix"
+
+let test_unit_entry_examples () =
+  check_render "1.234_N*mm^2/s<enter>" "1.234_N*mm^2*s^-1"
+    (one_deg "1.234_N*mm^2/s");
+  check_render "(2.3,5_s^-4<enter>" "(2.3, 5)_s^-4"
+    (one_deg "(2.3,5)_s^-4");
+  let matrix_units = render_data (one_deg "[[1,2][3,4]]_lbf*in") in
+  check bool "[1,2[3,4_lbf*in<enter> matrix"
+    true (String.starts_with ~prefix:"[[ 1, 2 ][ 3, 4 ]]_" matrix_units);
+  check bool "[1,2[3,4_lbf*in<enter> lbf"
+    true (contains_substring matrix_units "lbf");
+  check bool "[1,2[3,4_lbf*in<enter> in"
+    true (contains_substring matrix_units "in");
+  check_render "_nm<enter>" "1_nm" (one_deg "1_nm")
+
+let test_exact_integer_entry_examples () =
+  check_int "#123456<enter>" 123456 (one_deg "#123456`d");
+  check_int "#ffff<space>h<enter>" 65535 (one_deg "#ffff`h");
+  check_int "#10101n<space>b<enter>" (-21) (one_deg "#-10101`b")
+
+let test_variable_entry_example () =
+  match one_deg "@myvar" with
+  | RpcVariable "myvar" -> ()
+  | RpcVariable s -> failf "unexpected variable %S" s
+  | _ -> fail "expected variable"
+
+let test_external_editor_sample_inputs () =
+  check_int "exact integer sample" 12345678 (one_deg "#12345678`d");
+  check_float "real number sample" (-123.45e67) (one_deg "-123.45e67");
+  check_complex "complex rect sample" 1e10 2. (one_deg "(1e10, 2)");
+  check_complex "complex polar sample" 0. 1. (one_deg "(1 <90)");
+  check_fmat "real matrix sample"
+    [| [| 1.; 2. |]; [| 3.1; 4.5e10 |] |]
+    (one_deg "[[1, 2][3.1, 4.5e10]]");
+  check_cmat "complex matrix sample"
+    [| [| c 1. 0.; c 5. 0. |]; [| c 1e10 0.; c 0. 2. |] |]
+    (one_deg "[[(1, 0), 5][1e10, (2 <90)]]");
+  match one_deg "@myvar" with
+  | RpcVariable "myvar" -> ()
+  | _ -> fail "expected variable sample"
+
+let test_external_editor_multiple_entries_example () =
+  match parse_deg "(1, 2) 1.5" with
+  | [RpcComplexUnit (z, _); RpcFloatUnit (f, _)] ->
+      check (float eps) "complex real" 1. z.Complex.re;
+      check (float eps) "complex imag" 2. z.Complex.im;
+      check (float eps) "real" 1.5 f
+  | _ -> fail "expected complex value followed by real value"
+
+let test_function_shortcut_examples () =
+  let run entries_and_keys =
+    let model, _ = Pelzl_model.init Pelzl_model.Classic () in
+    List.fold_left
+      (fun model -> function
+        | `Entry s -> { model with entry = s; entry_cursor = String.length s }
+        | `Enter -> classic_enter model
+        | `Key ch -> classic_key ch model)
+      model entries_and_keys
+  in
+  let long_form = run [`Entry "2"; `Enter; `Entry "2"; `Enter; `Key '+'] in
+  let shortcut = run [`Entry "2"; `Enter; `Entry "2"; `Key '+'] in
+  check int "2<enter>2<enter>+" 4 (top_int long_form);
+  check int "2<enter>2+" 4 (top_int shortcut)
+
+let test_unit_formatting_example_parses () =
+  let data = one_deg "1_N*nm^2*kg/s/in^-3*GHz^2.34" in
+  check bool "unit formatting example has units"
+    true
+    (String.contains (render_data data) '_')
+
+let test_rad_parser_variant_for_polar_examples () =
+  check_complex "rad parser keeps polar angle in radians"
+    (cos 1.) (sin 1.) (one_deg "(1 <57.29577951308232)");
+  check_complex "explicit rad parser"
+    (cos 1.) (sin 1.) (match parse_rad "(1 <1)" with [x] -> x | _ -> fail "one")
+
+let test_function_abbreviation_examples_are_registered () =
+  ensure_orpie_defaults ();
+  let abbreviations =
+    [
+      "inv"; "pow"; "sq"; "sqrt"; "abs"; "exp"; "ln"; "10^"; "log10";
+      "conj"; "sin"; "cos"; "tan"; "sinh"; "cosh"; "tanh"; "asin";
+      "acos"; "atan"; "asinh"; "acosh"; "atanh"; "re"; "im"; "gamma";
+      "lngamma"; "erf"; "erfc"; "fact"; "gcd"; "lcm"; "binom"; "perm";
+      "trans"; "trace"; "solvelin"; "mod"; "floor"; "ceil"; "toint";
+      "toreal"; "add"; "sub"; "mult"; "div"; "neg"; "store"; "eval";
+      "purge"; "total"; "mean"; "sumsq"; "var"; "varbias"; "stdev";
+      "stdevbias"; "min"; "max"; "utpn"; "uconvert"; "ustand"; "uvalue";
+    ]
+  in
+  List.iter
+    (fun abbreviation ->
+      try ignore (Rcfile.translate_abbrev abbreviation)
+      with Not_found -> failf "missing abbreviation %S" abbreviation)
+    abbreviations
+
+let test_command_abbreviation_examples_are_registered () =
+  ensure_orpie_defaults ();
+  let abbreviations =
+    [
+      "drop"; "clear"; "swap"; "dup"; "undo"; "rad"; "deg"; "rect";
+      "polar"; "bin"; "oct"; "dec"; "hex"; "view"; "edit"; "pi"; "rand";
+      "refresh"; "about"; "quit";
+    ]
+  in
+  List.iter
+    (fun abbreviation ->
+      try ignore (Rcfile.translate_abbrev abbreviation)
+      with Not_found -> failf "missing abbreviation %S" abbreviation)
+    abbreviations
+
+let manual_example_tests =
+  [
+    ("overview addition example", `Quick, test_overview_addition_example);
+    ("real number entry examples", `Quick, test_real_number_entry_examples);
+    ("complex entry examples", `Quick, test_complex_entry_examples);
+    ("matrix entry examples", `Quick, test_matrix_entry_examples);
+    ("classic bracket key matrix entry example", `Quick,
+     test_classic_bracket_key_matrix_entry_example);
+    ("unit entry examples", `Quick, test_unit_entry_examples);
+    ("exact integer entry examples", `Quick, test_exact_integer_entry_examples);
+    ("variable entry example", `Quick, test_variable_entry_example);
+    ("external editor sample inputs", `Quick, test_external_editor_sample_inputs);
+    ("external editor multiple entries example", `Quick,
+     test_external_editor_multiple_entries_example);
+    ("function shortcut examples", `Quick, test_function_shortcut_examples);
+    ("unit formatting example parses", `Quick, test_unit_formatting_example_parses);
+    ("polar examples support rad and degree parsing", `Quick,
+     test_rad_parser_variant_for_polar_examples);
+    ("function abbreviation examples registered", `Quick,
+     test_function_abbreviation_examples_are_registered);
+    ("command abbreviation examples registered", `Quick,
+     test_command_abbreviation_examples_are_registered);
+  ]

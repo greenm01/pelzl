@@ -6,10 +6,46 @@ open Pelzl_model
 (* Pelzl_core.Pelzl_algebraic.                                          *)
 (* -------------------------------------------------------------------- *)
 
-let parse_entry s =
+let parse_with_txtin modes s =
+  let normalized =
+    let len = String.length s in
+    if len > 0 && s.[0] = '(' && not (String.contains s ')') then
+      s ^ ")"
+    else if len > 0 && s.[0] = '[' && (len = 1 || s.[1] <> '[') then
+      let unit_start =
+        try Some (String.rindex s '_') with Not_found -> None
+      in
+      let matrix_part, units =
+        match unit_start with
+        | Some idx ->
+            String.sub s 0 idx, String.sub s idx (len - idx)
+        | None -> s, ""
+      in
+      let rows =
+        String.split_on_char '[' (String.sub matrix_part 1 (String.length matrix_part - 1))
+        |> List.filter (fun row -> row <> "")
+      in
+      "["
+      ^ String.concat "" (List.map (fun row -> "[" ^ row ^ "]") rows)
+      ^ "]" ^ units
+    else s
+  in
+  let lexbuf = Lexing.from_string normalized in
+  let values =
+    match modes.Pelzl_engine.angle with
+    | Pelzl_engine.Rad -> Txtin_parser.decode_data_rad Txtin_lexer.token lexbuf
+    | Pelzl_engine.Deg -> Txtin_parser.decode_data_deg Txtin_lexer.token lexbuf
+  in
+  match values with
+  | [value] -> Some value
+  | _ -> None
+
+let parse_entry modes s =
   let len = String.length s in
   if len = 0 then Pelzl_engine.RpcVariable ""
-  else
+  else match (try parse_with_txtin modes s with _ -> None) with
+    | Some value -> value
+    | None ->
     let last = s.[len - 1] in
     if last = 'b' || last = 'o' || last = 'd' || last = 'h' then
       let base = match last with 'b' -> 2 | 'o' -> 8 | 'd' -> 10 | 'h' -> 16 | _ -> 10 in
@@ -28,7 +64,7 @@ let with_entry entry model =
   { model with entry; entry_cursor = String.length entry }
 
 let reset_entry model =
-  { model with entry = ""; entry_cursor = 0 }
+  { model with entry = ""; entry_cursor = 0; entry_mode = Normal }
 
 let insert_text s model =
   let cursor = clamp_cursor model.entry model.entry_cursor in
@@ -79,6 +115,31 @@ let cursor_home model = { model with entry_cursor = 0; error_msg = None }
 let cursor_end model =
   { model with entry_cursor = String.length model.entry; error_msg = None }
 
+let toggle_minus model =
+  let cursor = clamp_cursor model.entry model.entry_cursor in
+  let anchor = ref 0 in
+  for i = 0 to cursor - 1 do
+    match model.entry.[i] with
+    | '(' | '[' | ',' | '<' -> anchor := i + 1
+    | 'e' | 'E' when i + 1 <= cursor -> anchor := i + 1
+    | _ -> ()
+  done;
+  if !anchor < String.length model.entry && model.entry.[!anchor] = '-' then
+    { model with
+      entry =
+        String.sub model.entry 0 !anchor
+        ^ String.sub model.entry (!anchor + 1)
+            (String.length model.entry - !anchor - 1);
+      entry_cursor = max !anchor (cursor - 1);
+      error_msg = None }
+  else
+    let before = String.sub model.entry 0 !anchor in
+    let after = String.sub model.entry !anchor (String.length model.entry - !anchor) in
+    { model with
+      entry = before ^ "-" ^ after;
+      entry_cursor = cursor + 1;
+      error_msg = None }
+
 (* Classic-mode trace log. Repl mode never uses this. *)
 let add_trace line model =
   if model.ui_mode = Classic then
@@ -121,7 +182,7 @@ let push_entry model =
   if model.entry = "" then model
   else
     let entry = model.entry in
-    let value = parse_entry entry in
+    let value = parse_entry model.calc.Pelzl_engine.modes entry in
     let new_calc = { model.calc with stack = Pelzl_engine.stack_push value model.calc.stack } in
     let model = { (reset_entry model) with calc = new_calc } in
     add_trace (Printf.sprintf "Push %s" entry) model
@@ -254,16 +315,15 @@ let exec_edit model op =
       delete_before_cursor model
   | Operations.Enter -> push_entry model
   | Operations.Minus ->
-      let entry =
-        if String.length model.entry > 0 && model.entry.[0] = '-' then
-          String.sub model.entry 1 (String.length model.entry - 1)
-        else "-" ^ model.entry
-      in
-      with_entry entry model
-  | Operations.SciNotBase -> insert_text "e" model
-  | Operations.BeginInteger -> { model with entry_mode = Integer }
-  | Operations.BeginComplex -> { model with entry_mode = Complex }
-  | Operations.BeginMatrix -> { model with entry_mode = Matrix }
+      toggle_minus model
+  | Operations.SciNotBase ->
+      insert_text (if model.entry_mode = Integer then "`" else "e") model
+  | Operations.BeginInteger ->
+      { (insert_text "#" model) with entry_mode = Integer }
+  | Operations.BeginComplex ->
+      { (insert_text "(" model) with entry_mode = Complex }
+  | Operations.BeginMatrix ->
+      { (insert_text "[" model) with entry_mode = Matrix }
   | Operations.Separator -> insert_text "," model
   | Operations.Angle -> insert_text "<" model
   | Operations.BeginUnits -> insert_text "_" model
@@ -580,10 +640,22 @@ let update msg model =
         push_entry model, Mosaic.Cmd.none
       else
         let op_opt =
-          (try Some (Operations.Function (Rcfile.function_of_key key_binding)) with Not_found ->
-           try Some (Operations.Command (Rcfile.command_of_key key_binding)) with Not_found ->
-           try Some (Operations.Edit (Rcfile.edit_of_key key_binding)) with Not_found ->
-           None)
+          let edit_opt =
+            try Some (Rcfile.edit_of_key key_binding) with Not_found -> None
+          in
+          match model.entry, edit_opt with
+          | "", _ | _, None ->
+              (try Some (Operations.Function (Rcfile.function_of_key key_binding)) with Not_found ->
+               try Some (Operations.Command (Rcfile.command_of_key key_binding)) with Not_found ->
+               match edit_opt with
+               | Some e -> Some (Operations.Edit e)
+               | None -> None)
+          | _, Some Operations.Minus ->
+              Some (Operations.Edit Operations.Minus)
+          | _, Some e ->
+              (try Some (Operations.Function (Rcfile.function_of_key key_binding)) with Not_found ->
+               try Some (Operations.Command (Rcfile.command_of_key key_binding)) with Not_found ->
+               Some (Operations.Edit e))
         in
         (match op_opt with
         | Some (Operations.Function f) -> exec_function model f, Mosaic.Cmd.none
