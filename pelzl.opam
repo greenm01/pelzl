@@ -13,6 +13,8 @@ depends: [
   "dune" {>= "3.0"}
   "gsl" {>= "1.22.0"}
   "num"
+  "camlp-streams"
+  "matrix"
   "mosaic"
   "alcotest" {with-test}
 ]
