@@ -79,36 +79,23 @@ let test_meta_help () =
 let test_repl_msg_lines_preserves_empty_rows () =
   check (list string) "split blank rows"
     ["  first"; ""; "  second"; ""]
-    (repl_msg_lines "  first\n\n  second\n")
+    (Pelzl_view.repl_msg_lines "  first\n\n  second\n")
 
-let test_repl_static_render_msg_is_compact () =
-  let text, rows = render_repl_record_static ~width:80 (Repl_msg "a\n\nb") in
-  check int "rows" 3 rows;
-  check bool "has blank line" true (contains_substring text "\n\n");
-  check bool "no literal padding" false (contains_substring text " ");
-  check bool "no background sgr 40" false (contains_substring text "\027[4");
-  check bool "no background sgr 100" false (contains_substring text "\027[10");
-  check bool "no truecolor background" false (contains_substring text "48;")
+let test_repl_transcript_clips_to_available_height () =
+  let records = [
+    Repl_ok { input = "1"; result = "1" };
+    Repl_ok { input = "2"; result = "2" };
+    Repl_ok { input = "3"; result = "3" };
+  ] in
+  check (list string) "height reserves prompt/status/footer"
+    ["> 3"; "  = 3"]
+    (Pelzl_view.repl_transcript_plain_lines ~height:5 records)
 
-let test_repl_static_render_wrap_rows () =
-  let _text, rows = render_repl_record_static ~width:5 (Repl_msg "123456") in
-  check int "wrapped rows" 2 rows
-
-let test_repl_submit_uses_static_writer () =
-  let seen = ref None in
-  let writer record =
-    seen := Some record;
-    Mosaic.Cmd.none
-  in
-  let m = model_repl () in
-  let _m', _cmd =
-    handle_repl_submit ~repl_static_writer:writer (fun _ _ -> ()) m ":help"
-  in
-  match !seen with
-  | Some (Repl_msg txt) ->
-      check bool "writer got help" true
-        (contains_substring txt "[Ctrl-Q/D] Quit")
-  | _ -> fail "expected Repl_msg passed to static writer"
+let test_repl_transcript_no_width_padding () =
+  check (list string) "plain lines are compact"
+    ["> 1"; "  = 1"]
+    (Pelzl_view.repl_transcript_plain_lines ~height:24
+       [Repl_ok { input = "1"; result = "1" }])
 
 let test_meta_unknown () =
   let m = model_repl () in
@@ -200,7 +187,12 @@ let test_submit_algebraic () =
   check bool "no quit" false quit;
   check string "entry cleared" "" m'.entry;
   let res = Pelzl_engine.get_display_line 1 m'.calc in
-  check string "result" "7" (String.trim res)
+  check string "result" "7" (String.trim res);
+  match m'.repl_transcript with
+  | [Repl_ok { input; result }] ->
+      check string "transcript input" "1+2*3" input;
+      check string "transcript result" "7" result
+  | _ -> fail "expected algebraic transcript record"
 
 let pp_repl_record ppf = function
   | Repl_ok r -> Format.fprintf ppf "Repl_ok(%S -> %S)" r.input r.result
@@ -220,9 +212,19 @@ let test_submit_error () =
   let m', quit = submit_repl m "nosuchvar + 1" in
   check bool "no quit" false quit;
   check string "entry cleared" "" m'.entry;
-  check (option repl_record) "pending commit is error"
-    (Some (Repl_err { input = "nosuchvar + 1"; error = "unknown variable: nosuchvar" }))
-    m'.pending_commit
+  check (list repl_record) "transcript is error"
+    [Repl_err { input = "nosuchvar + 1"; error = "unknown variable: nosuchvar" }]
+    m'.repl_transcript
+
+let test_submit_help_records_transcript () =
+  let m = model_repl () in
+  let m', quit = submit_repl m ":help" in
+  check bool "no quit" false quit;
+  match m'.repl_transcript with
+  | [Repl_msg txt] ->
+      check bool "contains help" true
+        (contains_substring txt "[Ctrl-Q/D] Quit")
+  | _ -> fail "expected help transcript record"
 
 let test_submit_quit () =
   let m = model_repl () in
@@ -232,13 +234,22 @@ let test_submit_quit () =
 
 let test_submit_rpn_switch () =
   let m = model_repl () in
-  let m = { m with entry = ":rpn"; entry_cursor = 4; error_msg = Some "old" } in
+  let transcript = [Repl_ok { input = "1+1"; result = "2" }] in
+  let m =
+    { m with entry = ":rpn"; entry_cursor = 4; error_msg = Some "old";
+             repl_transcript = transcript }
+  in
   let m', action = submit_repl_action m ":rpn" in
   check bool "switch action" true
     (match action with Repl_switch Classic -> true | _ -> false);
   check bool "classic mode" true (m'.ui_mode = Classic);
   check string "entry cleared" "" m'.entry;
-  check (option string) "error cleared" None m'.error_msg
+  check (option string) "error cleared" None m'.error_msg;
+  check (list repl_record) "transcript preserved" transcript m'.repl_transcript;
+  let m'', _cmd = init ~initial_model:m' Repl () in
+  check bool "returned repl mode" true (m''.ui_mode = Repl);
+  check (list repl_record) "transcript preserved after return"
+    transcript m''.repl_transcript
 
 (* ------------------------------------------------------------------ *)
 (* bind_ans                                                           *)
@@ -268,9 +279,10 @@ let repl_history_tests = [
   ("meta :help returns help message", `Quick, test_meta_help);
   ("repl message lines preserve empty rows", `Quick,
    test_repl_msg_lines_preserves_empty_rows);
-  ("repl static render is compact", `Quick, test_repl_static_render_msg_is_compact);
-  ("repl static render wraps rows", `Quick, test_repl_static_render_wrap_rows);
-  ("repl submit uses static writer", `Quick, test_repl_submit_uses_static_writer);
+  ("repl transcript clips to height", `Quick,
+   test_repl_transcript_clips_to_available_height);
+  ("repl transcript lines are compact", `Quick,
+   test_repl_transcript_no_width_padding);
   ("meta unknown command", `Quick, test_meta_unknown);
   ("push_history prepends and dedups", `Quick, test_push_history);
   ("push_history caps at 1000", `Quick, test_push_history_cap);
@@ -280,6 +292,7 @@ let repl_history_tests = [
   ("submit empty clears entry", `Quick, test_submit_empty);
   ("submit algebraic evaluates", `Quick, test_submit_algebraic);
   ("submit error records Repl_err", `Quick, test_submit_error);
+  ("submit :help records Repl_msg", `Quick, test_submit_help_records_transcript);
   ("submit :quit requests exit", `Quick, test_submit_quit);
   ("submit :rpn requests mode switch", `Quick, test_submit_rpn_switch);
   ("bind_ans stores result", `Quick, test_bind_ans);

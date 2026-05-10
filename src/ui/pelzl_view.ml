@@ -265,10 +265,8 @@ let classic_view model =
       Mosaic.box ~flex_grow:1. [] ]
 
 (* -------------------------------------------------------------------- *)
-(* Repl (default) view: a single sober prompt line with live syntax     *)
-(* highlighting. Renders inline above terminal scrollback (Mosaic       *)
-(* `Primary mode); committed input/result records are pushed into the   *)
-(* scrollback area via Cmd.static_commit from the update function.      *)
+(* Repl (default) view: session-local transcript plus a sober prompt    *)
+(* with live syntax highlighting.                                       *)
 (* -------------------------------------------------------------------- *)
 
 (* Highlight styles. *)
@@ -280,6 +278,8 @@ let style_op =
   Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Magenta ()
 let style_func =
   Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Cyan ()
+let style_result =
+  Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Green ()
 let style_ident_known =
   Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Green ()
 let style_ident_unknown =
@@ -392,7 +392,89 @@ let preview_for calc s : string option =
 let repl_hint_text =
   "  ↑↓ history  [Alt-R] RPN  [Ctrl-Q] Quit  :help  :vars"
 
+type repl_line_style =
+  | Plain
+  | Prompt
+  | Result
+  | Arrow
+  | Error
+  | Msg
+
+type repl_line = (repl_line_style * string) list
+
+let repl_msg_lines s =
+  match String.split_on_char '\n' s with
+  | [] -> [""]
+  | lines -> lines
+
+let repl_record_lines (r : repl_record) : repl_line list =
+  match r with
+  | Repl_ok { input; result } ->
+      [
+        [ Prompt, "> "; Plain, input ];
+        [ Arrow, "  = "; Result, result ];
+      ]
+  | Repl_err { input; error } ->
+      [
+        [ Prompt, "> "; Plain, input ];
+        [ Arrow, "  ! "; Error, error ];
+      ]
+  | Repl_msg s ->
+      List.map
+        (fun line -> if line = "" then [] else [ Msg, line ])
+        (repl_msg_lines s)
+
+let take_last n xs =
+  if n <= 0 then []
+  else
+    let len = List.length xs in
+    let drop = max 0 (len - n) in
+    let rec aux i = function
+      | [] -> []
+      | x :: rest when i < drop -> aux (i + 1) rest
+      | xs -> xs
+    in
+    aux 0 xs
+
+let repl_transcript_lines ~height records =
+  let available = max 0 (height - 3) in
+  records
+  |> List.concat_map repl_record_lines
+  |> take_last available
+
+let repl_line_plain line =
+  String.concat "" (List.map snd line)
+
+let repl_transcript_plain_lines ~height records =
+  repl_transcript_lines ~height records |> List.map repl_line_plain
+
+let style_of_repl_line = function
+  | Plain -> None
+  | Prompt -> Some style_prompt
+  | Result -> Some style_result
+  | Arrow -> Some style_dim
+  | Error -> Some style_err
+  | Msg -> Some style_dim
+
+let repl_line_view line =
+  let nodes =
+    match line with
+    | [] -> [ Mosaic.text " " ]
+    | segments ->
+        List.map
+          (fun (style, text) ->
+            match style_of_repl_line style with
+            | None -> Mosaic.text text
+            | Some style -> Mosaic.text ~style text)
+          segments
+  in
+  Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row nodes
+
 let repl_view model =
+  let transcript_rows =
+    repl_transcript_lines ~height:model.height model.repl_transcript
+    |> List.map repl_line_view
+  in
   let prompt =
     Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row (
       [ Mosaic.text ~style:style_prompt "> " ]
@@ -416,7 +498,7 @@ let repl_view model =
       [ Mosaic.text ~style:style_dim repl_hint_text ]
   in
   Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Column
-    [ prompt; status_row; hint_row ]
+    (transcript_rows @ [ prompt; status_row; hint_row ])
 
 let view model =
   match model.ui_mode with

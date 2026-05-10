@@ -11,8 +11,7 @@ type classic_mode =
   | ClassicBrowse of { selected_level : int; hscroll : int }
 
 (* A committed REPL exchange: the input (echoed) and either a result
-   string or an error message. Used only by the inline Repl mode to
-   render scrollback via [Mosaic.Cmd.static_commit]. *)
+   string, an error message, or meta-command output. *)
 type repl_record =
   | Repl_ok of { input : string; result : string }
   | Repl_err of { input : string; error : string }
@@ -36,7 +35,7 @@ type model = {
   help_page : int;
   width : int;
   height : int;
-  pending_commit : repl_record option; (* one-shot; consumed by view->cmd *)
+  repl_transcript : repl_record list;  (* session-local visual transcript *)
 }
 
 type msg =
@@ -164,7 +163,7 @@ let normalize_for_mode mode model =
     history_save = "";
     show_help = false;
     help_page = 0;
-    pending_commit = None }
+    repl_transcript = model.repl_transcript }
 
 let init ?initial_model mode () =
   match initial_model with
@@ -183,5 +182,5 @@ let init ?initial_model mode () =
   ({ calc; entry = ""; entry_cursor = 0; entry_mode = Normal;
      classic_mode = ClassicMain; ui_mode = mode; slogan; error_msg = None;
      history; history_idx = None; history_save = ""; show_help = false;
-     help_page = 0; width = 80; height = 24; pending_commit = None },
+     help_page = 0; width = 80; height = 24; repl_transcript = [] },
    Mosaic.Cmd.none)

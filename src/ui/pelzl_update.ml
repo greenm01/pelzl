@@ -546,9 +546,8 @@ let exec_edit model op =
   | Operations.Digit -> model
 
 (* -------------------------------------------------------------------- *)
-(* Repl-mode evaluation: parse + eval through Pelzl_algebraic, then emit *)
-(* a static_commit so the input/result line lands in scrollback above   *)
-(* the live prompt. Errors are shown transiently in the live region.    *)
+(* Repl-mode evaluation: parse + eval through Pelzl_algebraic, then add *)
+(* records to the session-local transcript above the live prompt.       *)
 (* -------------------------------------------------------------------- *)
 
 let trim_ws s =
@@ -644,13 +643,15 @@ let push_history model s =
       in
       { model with history }
 
+let append_repl_record rec_ model =
+  { model with repl_transcript = model.repl_transcript @ [rec_]; error_msg = None }
+
 (* Submit a Repl-mode entry. Returns (model, action). *)
 let submit_repl_action model raw =
   let s = trim_ws raw in
   if s = "" then
     ({ model with entry = ""; entry_cursor = 0; history_idx = None;
-                  history_save = ""; error_msg = None;
-                  pending_commit = None }, Repl_continue)
+                  history_save = ""; error_msg = None }, Repl_continue)
   else
     (* Persist and remember. *)
     let model = push_history model s in
@@ -659,26 +660,26 @@ let submit_repl_action model raw =
       match handle_meta model s with
       | `Quit ->
           ({ model with entry = ""; entry_cursor = 0; history_idx = None;
-                        history_save = ""; pending_commit = None }, Repl_quit)
+                        history_save = "" }, Repl_quit)
       | `Switch mode ->
           normalize_for_mode mode model, Repl_switch mode
       | `Commit (m, rec_) ->
-          ({ m with entry = ""; entry_cursor = 0; history_idx = None;
-                    history_save = ""; error_msg = None;
-                    pending_commit = Some rec_ }, Repl_continue)
+          ({ (append_repl_record rec_ m) with entry = ""; entry_cursor = 0;
+                                           history_idx = None;
+                                           history_save = "" }, Repl_continue)
     else
       match Pelzl_algebraic.run model.calc s with
       | Ok (new_calc, display) ->
           let new_calc = bind_ans new_calc in
           let rec_ = Repl_ok { input = s; result = display } in
-          ({ model with calc = new_calc; entry = ""; entry_cursor = 0; history_idx = None;
-                        history_save = ""; error_msg = None;
-                        pending_commit = Some rec_ }, Repl_continue)
+          ({ (append_repl_record rec_ model) with calc = new_calc; entry = "";
+                                               entry_cursor = 0; history_idx = None;
+                                               history_save = "" }, Repl_continue)
       | Error e ->
           let rec_ = Repl_err { input = s; error = Pelzl_algebraic.pp_error e } in
-          ({ model with entry = ""; entry_cursor = 0; history_idx = None;
-                        history_save = ""; error_msg = None;
-                        pending_commit = Some rec_ }, Repl_continue)
+          ({ (append_repl_record rec_ model) with entry = ""; entry_cursor = 0;
+                                               history_idx = None;
+                                               history_save = "" }, Repl_continue)
 
 let submit_repl model raw =
   let model, action = submit_repl_action model raw in
@@ -719,106 +720,6 @@ let history_next model =
                    entry;
                    entry_cursor = String.length entry;
                    error_msg = None }
-
-(* -------------------------------------------------------------------- *)
-(* Main update                                                          *)
-(* -------------------------------------------------------------------- *)
-
-(* Style the committed scrollback record. *)
-let style_prompt =
-  Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Cyan ~bold:true ()
-let style_input =
-  Mosaic.Ansi.Style.make ()
-let style_result =
-  Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Green ()
-let style_arrow =
-  Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Bright_black ()
-let style_err =
-  Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Red ~bold:true ()
-let style_msg =
-  Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Bright_black ()
-
-let repl_msg_lines s =
-  match String.split_on_char '\n' s with
-  | [] -> [""]
-  | lines -> lines
-
-let rows_for_plain_len ~width len =
-  let width = max 1 width in
-  if len = 0 then 1 else ((len - 1) / width) + 1
-
-let rows_for_text_width ~width text =
-  rows_for_plain_len ~width (String.length text)
-
-let ansi_line segments =
-  if List.for_all (fun (_, text) -> text = "") segments then ""
-  else Mosaic.Ansi.render segments
-
-let repl_record_static_lines (r : repl_record) =
-  match r with
-  | Repl_ok { input; result } ->
-      [
-        [ style_prompt, "> "; style_input, input ];
-        [ style_arrow, "  = "; style_result, result ];
-      ]
-  | Repl_err { input; error } ->
-      [
-        [ style_prompt, "> "; style_input, input ];
-        [ style_arrow, "  ! "; style_err, error ];
-      ]
-  | Repl_msg s ->
-      List.map
-        (fun line -> if line = "" then [] else [ style_msg, line ])
-        (repl_msg_lines s)
-
-let render_repl_record_static ~width r =
-  let lines = repl_record_static_lines r in
-  let rows =
-    List.fold_left
-      (fun acc line ->
-        let plain_len =
-          List.fold_left (fun n (_, text) -> n + String.length text) 0 line
-        in
-        acc + rows_for_plain_len ~width plain_len)
-      0 lines
-  in
-  String.concat "\n" (List.map ansi_line lines), rows
-
-let render_record (r : repl_record) =
-  let row children =
-    Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row children
-  in
-  match r with
-  | Repl_ok { input; result } ->
-      Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Column [
-        row [ Mosaic.text ~style:style_prompt "> ";
-              Mosaic.text ~style:style_input input ];
-        row [ Mosaic.text ~style:style_arrow "  = ";
-              Mosaic.text ~style:style_result result ];
-      ]
-  | Repl_err { input; error } ->
-      Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Column [
-        row [ Mosaic.text ~style:style_prompt "> ";
-              Mosaic.text ~style:style_input input ];
-        row [ Mosaic.text ~style:style_arrow "  ! ";
-              Mosaic.text ~style:style_err error ];
-      ]
-  | Repl_msg s ->
-      Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Column
-        (List.map
-           (fun line ->
-             if line = "" then Mosaic.text ""
-             else Mosaic.text ~style:style_msg line)
-           (repl_msg_lines s))
-
-let default_repl_static_writer r = Mosaic.Cmd.static_commit (render_record r)
-
-let take_pending ?(repl_static_writer = default_repl_static_writer) model =
-  match model.pending_commit with
-  | None -> (model, Mosaic.Cmd.none)
-  | Some r ->
-      let cmd = repl_static_writer r in
-      ({ model with pending_commit = None }, cmd)
 
 let quit_cmd = Mosaic.Cmd.quit
 
@@ -995,18 +896,16 @@ let handle_classic_browse editor_runner model key_binding selected_level hscroll
   with Not_found ->
     { model with error_msg = None }, Mosaic.Cmd.none
 
-let handle_repl_submit ?repl_static_writer on_mode_switch model raw =
+let handle_repl_submit on_mode_switch model raw =
   let model, action = submit_repl_action model raw in
-  let model, cmd = take_pending ?repl_static_writer model in
   match action with
-  | Repl_continue -> model, cmd
+  | Repl_continue -> model, Mosaic.Cmd.none
   | Repl_quit -> model, quit_cmd
   | Repl_switch mode ->
       on_mode_switch mode model;
       model, quit_cmd
 
 let update ?(editor_runner = default_editor_runner)
-    ?repl_static_writer
     ?(on_mode_switch = default_mode_switch) msg model =
   match msg with
   | Set_entry s ->
@@ -1014,7 +913,7 @@ let update ?(editor_runner = default_editor_runner)
                              history_save = ""; error_msg = None },
       Mosaic.Cmd.none
   | Submit s ->
-      handle_repl_submit ?repl_static_writer on_mode_switch model s
+      handle_repl_submit on_mode_switch model s
   | History_prev ->
       history_prev model, Mosaic.Cmd.none
   | History_next ->
@@ -1070,7 +969,7 @@ let update ?(editor_runner = default_editor_runner)
         | End -> cursor_end model, Mosaic.Cmd.none
         | Delete -> delete_at_cursor model, Mosaic.Cmd.none
         | Enter ->
-            handle_repl_submit ?repl_static_writer on_mode_switch model model.entry
+            handle_repl_submit on_mode_switch model model.entry
         | Backspace ->
             delete_before_cursor model, Mosaic.Cmd.none
         | Char c when data.modifier.ctrl
