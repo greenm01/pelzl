@@ -1,5 +1,7 @@
 open Pelzl_model
 
+type editor_runner = string -> unit
+
 (* -------------------------------------------------------------------- *)
 (* Helpers carried over from the legacy RPN/Classic implementation.     *)
 (* The algebraic parser previously embedded here has moved to           *)
@@ -132,6 +134,87 @@ let resolve_prefixed symbols translate prefix =
   match symbol with
   | Some s -> Some (s, translate s)
   | None -> None
+
+let default_editor_runner path =
+  ignore (Sys.command (!(Rcfile.editor) ^ " " ^ Filename.quote path))
+
+let data_path basename =
+  Utility.expand_file (Utility.join_path !(Rcfile.datadir) basename)
+
+let rec ensure_dir dir =
+  if dir = "" || dir = "." || Sys.file_exists dir then ()
+  else begin
+    let parent = Filename.dirname dir in
+    if parent <> dir then ensure_dir parent;
+    try Unix.mkdir dir 0o755 with
+    | Unix.Unix_error (Unix.EEXIST, _, _) -> ()
+  end
+
+let write_text_file path text =
+  ensure_dir (Filename.dirname path);
+  let ch = open_out path in
+  Fun.protect
+    ~finally:(fun () -> close_out_noerr ch)
+    (fun () -> output_string ch text)
+
+let ensure_text_file path =
+  ensure_dir (Filename.dirname path);
+  if not (Sys.file_exists path) then write_text_file path ""
+
+let read_text_file path =
+  let ch = open_in path in
+  Fun.protect
+    ~finally:(fun () -> close_in_noerr ch)
+    (fun () ->
+      let len = in_channel_length ch in
+      really_input_string ch len)
+
+let parse_input_text calc text =
+  let lexbuf = Lexing.from_string text in
+  match calc.Pelzl_engine.modes.Pelzl_engine.angle with
+  | Pelzl_engine.Rad -> Txtin_parser.decode_data_rad Txtin_lexer.token lexbuf
+  | Pelzl_engine.Deg -> Txtin_parser.decode_data_deg Txtin_lexer.token lexbuf
+
+let editor_error_message = function
+  | Parsing.Parse_error | Failure _ -> "syntax error in input"
+  | Utility.Txtin_error s
+  | Big_int_str.Big_int_string_failure s
+  | Units.Units_error s
+  | Sys_error s
+  | Invalid_argument s
+  | Pelzl_engine.Stack_error s -> s
+  | exn -> Printexc.to_string exn
+
+let with_editor_error f model =
+  try f model with exn -> { model with error_msg = Some (editor_error_message exn) }
+
+let push_editor_values values calc =
+  match values with
+  | [] -> calc
+  | _ ->
+      let calc = Pelzl_engine.state_backup calc in
+      List.fold_left
+        (fun calc value ->
+          { calc with
+            Pelzl_engine.stack =
+              Pelzl_engine.stack_push value calc.Pelzl_engine.stack })
+        calc values
+
+let replace_browse_values selected values calc =
+  match values with
+  | [] -> calc
+  | _ ->
+      let calc = Pelzl_engine.state_backup calc in
+      List.fold_left
+        (fun calc value ->
+          let stack =
+            calc.Pelzl_engine.stack
+            |> Pelzl_engine.stack_delete selected
+            |> Pelzl_engine.stack_push value
+            |> Pelzl_engine.stack_rolldown selected
+          in
+          { calc with Pelzl_engine.stack })
+        calc values
 
 let toggle_minus model =
   let cursor = clamp_cursor model.entry model.entry_cursor in
@@ -358,6 +441,38 @@ let set_browse_mode model selected hscroll =
         ClassicBrowse { selected_level = selected; hscroll = max 0 hscroll };
       error_msg = None }
 
+let run_view_editor editor_runner level model =
+  with_editor_error
+    (fun model ->
+      let path = data_path "fullscreen" in
+      write_text_file path (Pelzl_engine.get_fullscreen_display level model.calc);
+      editor_runner path;
+      { model with error_msg = None })
+    model
+
+let run_edit_input_editor editor_runner model =
+  with_editor_error
+    (fun model ->
+      let path = data_path "input" in
+      ensure_text_file path;
+      editor_runner path;
+      let values = parse_input_text model.calc (read_text_file path) in
+      let calc = push_editor_values values model.calc in
+      add_trace "Edit input" { model with calc; error_msg = None })
+    model
+
+let run_browse_edit_editor editor_runner selected hscroll model =
+  with_editor_error
+    (fun model ->
+      let path = data_path "input" in
+      write_text_file path (Pelzl_engine.get_fullscreen_display selected model.calc);
+      editor_runner path;
+      let values = parse_input_text model.calc (read_text_file path) in
+      let calc = replace_browse_values selected values model.calc in
+      add_trace "Edit stack entry"
+        (set_browse_mode { model with calc; error_msg = None } selected hscroll))
+    model
+
 let mutate_browse_stack model selected hscroll f next_selected =
   try
     let calc = Pelzl_engine.state_backup model.calc in
@@ -367,7 +482,7 @@ let mutate_browse_stack model selected hscroll f next_selected =
   | Invalid_argument s -> { model with error_msg = Some s }
   | Pelzl_engine.Stack_error s -> { model with error_msg = Some s }
 
-let exec_browse model selected hscroll op =
+let exec_browse editor_runner model selected hscroll op =
   match op with
   | Operations.EndBrowse ->
       exit_classic_mode model
@@ -400,8 +515,10 @@ let exec_browse model selected hscroll op =
   | Operations.RollUp ->
       mutate_browse_stack model selected hscroll
         (Pelzl_engine.stack_rollup selected) selected
-  | Operations.ViewEntry | Operations.EditEntry ->
-      { model with error_msg = Some "external editor not implemented" }
+  | Operations.ViewEntry ->
+      run_view_editor editor_runner selected model
+  | Operations.EditEntry ->
+      run_browse_edit_editor editor_runner selected hscroll model
 
 let exec_edit model op =
   match op with
@@ -638,7 +755,7 @@ let take_pending model =
 
 let quit_cmd = Mosaic.Cmd.quit
 
-let execute_classic_operation model op =
+let execute_classic_operation editor_runner model op =
   match op with
   | Operations.Function f ->
       exec_function model f, Mosaic.Cmd.none
@@ -660,9 +777,10 @@ let execute_classic_operation model op =
             { model with error_msg = Some "empty stack" }, Mosaic.Cmd.none
           else
             set_browse_mode (reset_entry model) 1 0, Mosaic.Cmd.none
-      | Operations.View | Operations.EditInput ->
-          { model with error_msg = Some "external editor not implemented" },
-          Mosaic.Cmd.none
+      | Operations.View ->
+          run_view_editor editor_runner 1 model, Mosaic.Cmd.none
+      | Operations.EditInput ->
+          run_edit_input_editor editor_runner model, Mosaic.Cmd.none
       | _ ->
           exec_command model c, Mosaic.Cmd.none)
   | Operations.Edit e ->
@@ -693,7 +811,7 @@ let is_backspace_key (data : Input.Key.event) =
   | Char c -> Uchar.to_int c = 0x7f
   | _ -> false
 
-let execute_abbrev model =
+let execute_abbrev editor_runner model =
   if model.entry = "" then
     { model with error_msg = Some "empty abbreviation" }, Mosaic.Cmd.none
   else
@@ -702,7 +820,7 @@ let execute_abbrev model =
       { model with error_msg = Some ("unknown abbreviation: " ^ model.entry) },
       Mosaic.Cmd.none
   | Some (_symbol, op) ->
-      execute_classic_operation (exit_classic_mode model) op
+      execute_classic_operation editor_runner (exit_classic_mode model) op
 
 let execute_constant model =
   if model.entry = "" then
@@ -752,10 +870,10 @@ let complete_variable completion_prefix model =
       { (with_entry next { model with error_msg = None })
         with classic_mode = ClassicVariable { completion_prefix = Some prefix } }
 
-let handle_classic_abbrev kind model (data : Input.Key.event) =
+let handle_classic_abbrev editor_runner kind model (data : Input.Key.event) =
   if data.key = Enter then
     match kind with
-    | OperationAbbrev -> execute_abbrev model
+    | OperationAbbrev -> execute_abbrev editor_runner model
     | ConstantAbbrev -> execute_constant model
   else if is_backspace_key data then
     delete_before_cursor model, Mosaic.Cmd.none
@@ -781,14 +899,14 @@ let handle_classic_variable completion_prefix model (data : Input.Key.event) =
         Mosaic.Cmd.none
     | _ -> { model with error_msg = None }, Mosaic.Cmd.none
 
-let handle_classic_browse model key_binding selected_level hscroll =
+let handle_classic_browse editor_runner model key_binding selected_level hscroll =
   try
     let op = Rcfile.browse_of_key key_binding in
-    exec_browse model selected_level hscroll op, Mosaic.Cmd.none
+    exec_browse editor_runner model selected_level hscroll op, Mosaic.Cmd.none
   with Not_found ->
     { model with error_msg = None }, Mosaic.Cmd.none
 
-let update msg model =
+let update ?(editor_runner = default_editor_runner) msg model =
   match msg with
   | Set_entry s ->
       { (with_entry s model) with history_idx = None;
@@ -869,11 +987,11 @@ let update msg model =
       else
         (match model.classic_mode with
         | ClassicAbbrev kind ->
-            handle_classic_abbrev kind model data
+            handle_classic_abbrev editor_runner kind model data
         | ClassicVariable { completion_prefix } ->
             handle_classic_variable completion_prefix model data
         | ClassicBrowse { selected_level; hscroll } ->
-            handle_classic_browse model key_binding selected_level hscroll
+            handle_classic_browse editor_runner model key_binding selected_level hscroll
         | ClassicMain ->
       if model.entry <> "" && is_enter then
         push_entry model, Mosaic.Cmd.none
@@ -897,7 +1015,7 @@ let update msg model =
                Some (Operations.Edit e))
         in
         (match op_opt with
-        | Some op -> execute_classic_operation model op
+        | Some op -> execute_classic_operation editor_runner model op
         | None ->
             (match data.key with
             | Char c when not data.modifier.ctrl && not data.modifier.alt

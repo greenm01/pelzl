@@ -1754,6 +1754,13 @@ let render_int calc_modes i =
   | Hex -> "# " ^ string_of_big_int_base_gen i 16 ^ "`h"
   | Dec -> "# " ^ string_of_big_int_base_gen i 10 ^ "`d"
 
+let render_int_fullscreen calc_modes i =
+  match calc_modes.base with
+  | Bin -> "#" ^ string_of_big_int_base_gen i 2 ^ "`b"
+  | Oct -> "#" ^ string_of_big_int_base_gen i 8 ^ "`o"
+  | Hex -> "#" ^ string_of_big_int_base_gen i 16 ^ "`h"
+  | Dec -> "#" ^ string_of_big_int_base_gen i 10 ^ "`d"
+
 let render_float_unit ff uu =
   if uu <> Units.empty_unit then
     sprintf "%.15g_%s" ff (Units.string_of_units uu)
@@ -1790,6 +1797,30 @@ let render_float_matrix_line fm uu =
   line := !line ^ "]";
   append_units !line
 
+let render_float_matrix_fullscreen fm uu =
+  let append_units ss =
+    if uu <> Units.empty_unit then ss ^ "_" ^ Units.string_of_units uu else ss
+  in
+  let rows, cols = Gsl.Matrix.dims fm in
+  let max_width = Array.make cols 0 in
+  for m = 0 to cols - 1 do
+    for n = 0 to rows - 1 do
+      let cell = sprintf "%-20.15g" fm.{n, m} in
+      max_width.(m) <- max max_width.(m) (String.length cell)
+    done
+  done;
+  let line = ref "[" in
+  for n = 0 to rows - 1 do
+    line := !line ^ "[ ";
+    for m = 0 to cols - 2 do
+      line := !line ^ sprintf "%*.15g, " max_width.(m) fm.{n, m}
+    done;
+    line := !line ^ sprintf "%*.15g ]" max_width.(cols - 1) fm.{n, cols - 1};
+    if n < rows - 1 then line := !line ^ "\n "
+  done;
+  line := !line ^ "]";
+  append_units !line
+
 let render_complex_matrix_line calc_modes cm uu =
   let append_units ss =
     if uu <> Units.empty_unit then ss ^ "_" ^ Units.string_of_units uu else ss
@@ -1822,6 +1853,69 @@ let render_complex_matrix_line calc_modes cm uu =
   line := !line ^ "]";
   append_units !line
 
+let render_complex_matrix_fullscreen calc_modes cm uu =
+  let append_units ss =
+    if uu <> Units.empty_unit then ss ^ "_" ^ Units.string_of_units uu else ss
+  in
+  let rows, cols = Gsl.Matrix_complex.dims cm in
+  let max_width = Array.make_matrix cols 2 0 in
+  for m = 0 to cols - 1 do
+    for n = 0 to rows - 1 do
+      match calc_modes.complex with
+      | Rect ->
+          let re = sprintf "%-20.15g" cm.{n, m}.Complex.re in
+          let im = sprintf "%-20.15g" cm.{n, m}.Complex.im in
+          max_width.(m).(0) <- max max_width.(m).(0) (String.length re);
+          max_width.(m).(1) <- max max_width.(m).(1) (String.length im)
+      | Polar ->
+          let rr = cm.{n, m}.Complex.re
+          and ii = cm.{n, m}.Complex.im in
+          let r = sqrt (rr *. rr +. ii *. ii)
+          and theta = atan2 ii rr in
+          let theta =
+            match calc_modes.angle with
+            | Rad -> theta
+            | Deg -> 180.0 /. pi *. theta
+          in
+          let r_s = sprintf "%-20.15g" r in
+          let theta_s = sprintf "%-20.15g" theta in
+          max_width.(m).(0) <- max max_width.(m).(0) (String.length r_s);
+          max_width.(m).(1) <- max max_width.(m).(1) (String.length theta_s)
+    done
+  done;
+  let line = ref "[" in
+  for n = 0 to rows - 1 do
+    line := !line ^ "[ ";
+    for m = 0 to cols - 1 do
+      (match calc_modes.complex with
+      | Rect ->
+          line :=
+            !line
+            ^ sprintf "(%*.15g, %*.15g)"
+                max_width.(m).(0) cm.{n, m}.Complex.re
+                max_width.(m).(1) cm.{n, m}.Complex.im
+      | Polar ->
+          let rr = cm.{n, m}.Complex.re
+          and ii = cm.{n, m}.Complex.im in
+          let r = sqrt (rr *. rr +. ii *. ii)
+          and theta = atan2 ii rr in
+          let theta =
+            match calc_modes.angle with
+            | Rad -> theta
+            | Deg -> 180.0 /. pi *. theta
+          in
+          line :=
+            !line
+            ^ sprintf "(%*.15g <%*.15g)"
+                max_width.(m).(0) r max_width.(m).(1) theta);
+      if m < cols - 1 then line := !line ^ ", "
+      else line := !line ^ " ]"
+    done;
+    if n < rows - 1 then line := !line ^ "\n "
+  done;
+  line := !line ^ "]";
+  append_units !line
+
 let render_variable_line vv = "@ " ^ vv
 
 let render_data calc_modes d =
@@ -1832,6 +1926,15 @@ let render_data calc_modes d =
   | RpcFloatMatrixUnit (m, u) -> render_float_matrix_line m u
   | RpcComplexMatrixUnit (m, u) -> render_complex_matrix_line calc_modes m u
   | RpcVariable v -> render_variable_line v
+
+let render_data_fullscreen calc_modes d =
+  match d with
+  | RpcInt i -> render_int_fullscreen calc_modes i
+  | RpcFloatUnit (f, u) -> render_float_unit f u
+  | RpcComplexUnit (c, u) -> render_complex_unit calc_modes c u
+  | RpcFloatMatrixUnit (m, u) -> render_float_matrix_fullscreen m u
+  | RpcComplexMatrixUnit (m, u) -> render_complex_matrix_fullscreen calc_modes m u
+  | RpcVariable v -> "@" ^ v
 
 let get_display_line line_num st =
   if line_num > 0 && line_num <= st.stack.len then
@@ -1844,7 +1947,7 @@ let get_display_line line_num st =
 
 let get_fullscreen_display line_num st =
   if line_num > 0 && line_num <= st.stack.len then
-    render_data st.modes st.stack.data.(st.stack.len - line_num)
+    render_data_fullscreen st.modes st.stack.data.(st.stack.len - line_num)
   else if line_num > st.stack.len then
     ""
   else

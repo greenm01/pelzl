@@ -136,6 +136,12 @@ let top_float model =
   | RpcInt i -> Big_int.float_of_big_int i
   | _ -> fail "expected numeric top of stack"
 
+let stack_int level model =
+  match stack_peek level model.Pelzl_model.calc.stack with
+  | RpcInt i -> Big_int.int_of_big_int i
+  | RpcFloatUnit (f, _) -> int_of_float f
+  | _ -> failf "expected numeric stack level %d" level
+
 let model_with_ints ints =
   let model, _ = Pelzl_model.init Pelzl_model.Classic () in
   let stack =
@@ -144,6 +150,41 @@ let model_with_ints ints =
       model.calc.stack ints
   in
   { model with calc = { model.calc with stack } }
+
+let read_file path =
+  let ch = open_in path in
+  Fun.protect
+    ~finally:(fun () -> close_in_noerr ch)
+    (fun () -> really_input_string ch (in_channel_length ch))
+
+let write_file path text =
+  let ch = open_out path in
+  Fun.protect
+    ~finally:(fun () -> close_out_noerr ch)
+    (fun () -> output_string ch text)
+
+let with_temp_datadir f =
+  let old_datadir = !(Rcfile.datadir) in
+  let dir = Filename.temp_file "pelzl-editor-" "" in
+  Sys.remove dir;
+  Unix.mkdir dir 0o700;
+  Rcfile.datadir := dir;
+  Fun.protect
+    ~finally:(fun () ->
+      Rcfile.datadir := old_datadir;
+      List.iter
+        (fun basename ->
+          let path = Filename.concat dir basename in
+          if Sys.file_exists path then Sys.remove path)
+        [ "input"; "fullscreen" ];
+      Unix.rmdir dir)
+    (fun () -> f dir)
+
+let update_with_editor editor_runner input_key model =
+  fst (Pelzl_update.update ~editor_runner (Key_input input_key) model)
+
+let classic_key_with_editor editor_runner ch model =
+  update_with_editor editor_runner (plain_char ch) model
 
 let test_overview_addition_example () =
   let model, _ = Pelzl_model.init Pelzl_model.Classic () in
@@ -349,6 +390,110 @@ let test_classic_browse_keep_and_roll () =
   in
   check int "roll selected range" 2 (top_int model)
 
+let test_fullscreen_render_round_trips_through_txtin () =
+  let check_round_trip data check_parsed =
+    let calc =
+      { empty_state with stack = stack_push data empty_state.stack }
+    in
+    let text = get_fullscreen_display 1 calc in
+    check_parsed text (one_deg text)
+  in
+  check_round_trip
+    (RpcInt (Big_int.big_int_of_int 123))
+    (fun text parsed ->
+      check string "int text" "#123`d" text;
+      check_int "int parsed" 123 parsed);
+  check_round_trip
+    (RpcVariable "myvar")
+    (fun text parsed ->
+      check string "variable text" "@myvar" text;
+      match parsed with
+      | RpcVariable "myvar" -> ()
+      | _ -> fail "variable should round-trip");
+  check_round_trip
+    (one_deg "[[1, 2][3.1, 4.5e10]]")
+    (fun text parsed ->
+      check bool "matrix multiline" true (String.contains text '\n');
+      check_fmat "matrix parsed"
+        [| [| 1.; 2. |]; [| 3.1; 4.5e10 |] |]
+        parsed);
+  check_round_trip
+    (one_deg "[[(1, 0), 5][1e10, (2 <90)]]")
+    (fun _ parsed ->
+      check_cmat "complex matrix parsed"
+        [| [| c 1. 0.; c 5. 0. |]; [| c 1e10 0.; c 0. 2. |] |]
+        parsed)
+
+let test_classic_view_uses_external_editor_without_mutating_stack () =
+  let model = model_with_ints [1; 2] in
+  with_temp_datadir (fun _dir ->
+    let saw_runner = ref false in
+    let editor_runner path =
+      saw_runner := true;
+      check string "view file" "fullscreen" (Filename.basename path);
+      check string "view content" "#2`d" (read_file path);
+      write_file path "#999`d"
+    in
+    let model = classic_key_with_editor editor_runner 'v' model in
+    check bool "runner called" true !saw_runner;
+    check int "stack unchanged length" 2 (stack_length model.calc.stack);
+    check int "stack unchanged top" 2 (top_int model))
+
+let test_classic_edit_input_reuses_buffer_and_pushes_values () =
+  let model, _ = Pelzl_model.init Pelzl_model.Classic () in
+  with_temp_datadir (fun dir ->
+    let input = Filename.concat dir "input" in
+    write_file input "3";
+    let saw_runner = ref false in
+    let editor_runner path =
+      saw_runner := true;
+      check string "edit file" "input" (Filename.basename path);
+      check string "preserved buffer" "3" (read_file path);
+      write_file path "4 5"
+    in
+    let model = classic_key_with_editor editor_runner 'E' model in
+    check bool "runner called" true !saw_runner;
+    check int "two values pushed" 2 (stack_length model.calc.stack);
+    check int "top value" 5 (stack_int 1 model);
+    check int "second value" 4 (stack_int 2 model))
+
+let test_classic_browse_view_and_edit_selected_entry () =
+  let select_second model =
+    model
+    |> fun m -> fst (Pelzl_update.update (Key_input (key Input.Key.Up)) m)
+    |> fun m -> fst (Pelzl_update.update (Key_input (key Input.Key.Up)) m)
+  in
+  let model = model_with_ints [1; 2; 3] |> select_second in
+  with_temp_datadir (fun _dir ->
+    let editor_runner path =
+      check string "browse view file" "fullscreen" (Filename.basename path);
+      check string "browse view selected" "#2`d" (read_file path)
+    in
+    let model = classic_key_with_editor editor_runner 'v' model in
+    check int "browse view unchanged selected" 2 (stack_int 2 model));
+  let model = model_with_ints [1; 2; 3] |> select_second in
+  with_temp_datadir (fun _dir ->
+    let editor_runner path =
+      check string "browse edit file" "input" (Filename.basename path);
+      check string "browse edit prefilled" "#2`d" (read_file path);
+      write_file path "#9`d #8`d"
+    in
+    let model = classic_key_with_editor editor_runner 'E' model in
+    check int "browse edit length" 3 (stack_length model.calc.stack);
+    check int "browse edit leaves top alone" 3 (stack_int 1 model);
+    check int "browse edit last parsed value wins" 8 (stack_int 2 model);
+    check int "browse edit bottom unchanged" 1 (stack_int 3 model))
+
+let test_classic_external_editor_parse_error_preserves_stack () =
+  let model = model_with_ints [7] in
+  with_temp_datadir (fun _dir ->
+    let editor_runner path = write_file path "[" in
+    let model = classic_key_with_editor editor_runner 'E' model in
+    check int "stack length unchanged" 1 (stack_length model.calc.stack);
+    check int "top unchanged" 7 (top_int model);
+    check (option string) "parse error"
+      (Some "syntax error in input") model.error_msg)
+
 let test_unit_formatting_example_parses () =
   let data = one_deg "1_N*nm^2*kg/s/in^-3*GHz^2.34" in
   check bool "unit formatting example has units"
@@ -425,6 +570,16 @@ let manual_example_tests =
     ("classic browse echo and drop selected", `Quick,
      test_classic_browse_echo_and_drop_selected);
     ("classic browse keep and roll", `Quick, test_classic_browse_keep_and_roll);
+    ("fullscreen render round trips through txtin", `Quick,
+     test_fullscreen_render_round_trips_through_txtin);
+    ("classic view uses external editor without mutating stack", `Quick,
+     test_classic_view_uses_external_editor_without_mutating_stack);
+    ("classic edit input reuses buffer and pushes values", `Quick,
+     test_classic_edit_input_reuses_buffer_and_pushes_values);
+    ("classic browse view and edit selected entry", `Quick,
+     test_classic_browse_view_and_edit_selected_entry);
+    ("classic external editor parse error preserves stack", `Quick,
+     test_classic_external_editor_parse_error_preserves_stack);
     ("unit formatting example parses", `Quick, test_unit_formatting_example_parses);
     ("polar examples support rad and degree parsing", `Quick,
      test_rad_parser_variant_for_polar_examples);

@@ -23,4 +23,10 @@ let () =
      appear at the wrong row and leaving stale content on exit. *)
   if mode_kind = `Primary then (print_char '\n'; flush stdout);
   let matrix = Matrix.create ~mode:mode_kind () in
-  Mosaic.run ~matrix (Pelzl_app.app !mode)
+  let editor_runner path =
+    Matrix.suspend matrix;
+    Fun.protect
+      ~finally:(fun () -> Matrix.resume matrix)
+      (fun () -> ignore (Sys.command (!(Rcfile.editor) ^ " " ^ Filename.quote path)))
+  in
+  Mosaic.run ~matrix (Pelzl_app.app ~editor_runner !mode)

@@ -3,4 +3,4 @@
  (name pelzl_ui)
  (wrapped false)
  (flags (:standard -w -27-35-52 -thread -alert -deprecated))
- (libraries pelzl_core mosaic matrix.input gsl num str threads camlp-streams))
+ (libraries pelzl_core mosaic matrix.input unix gsl num str threads camlp-streams))
