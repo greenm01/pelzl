@@ -130,6 +130,21 @@ let top_int model =
   | RpcFloatUnit (f, _) -> int_of_float f
   | _ -> fail "expected numeric top of stack"
 
+let top_float model =
+  match stack_peek 1 model.Pelzl_model.calc.stack with
+  | RpcFloatUnit (f, _) -> f
+  | RpcInt i -> Big_int.float_of_big_int i
+  | _ -> fail "expected numeric top of stack"
+
+let model_with_ints ints =
+  let model, _ = Pelzl_model.init Pelzl_model.Classic () in
+  let stack =
+    List.fold_left
+      (fun stack n -> stack_push (RpcInt (Big_int.big_int_of_int n)) stack)
+      model.calc.stack ints
+  in
+  { model with calc = { model.calc with stack } }
+
 let test_overview_addition_example () =
   let model, _ = Pelzl_model.init Pelzl_model.Classic () in
   let model = { model with entry = "1"; entry_cursor = 1 } |> classic_enter in
@@ -235,6 +250,105 @@ let test_function_shortcut_examples () =
   check int "2<enter>2<enter>+" 4 (top_int long_form);
   check int "2<enter>2+" 4 (top_int shortcut)
 
+let test_classic_operation_abbreviation_executes_functions () =
+  let model, _ = Pelzl_model.init Pelzl_model.Classic () in
+  let angle = "1.5707963267948966" in
+  let model =
+    { model with entry = angle; entry_cursor = String.length angle }
+    |> classic_enter
+    |> classic_key '\''
+    |> classic_type "sin"
+    |> classic_enter
+  in
+  check (float 1e-9) "'sin<enter>" 1. (top_float model);
+  check bool "returns to main" true (model.classic_mode = ClassicMain)
+
+let test_classic_command_abbreviation_executes_commands () =
+  let model = model_with_ints [42] in
+  let model = model |> classic_key '\'' |> classic_type "deg" |> classic_enter in
+  check bool "'deg<enter>" true ((get_modes model.calc).angle = Deg);
+  let model = model |> classic_key '\'' |> classic_type "drop" |> classic_enter in
+  check int "'drop<enter>" 0 (stack_length model.calc.stack)
+
+let test_classic_unknown_abbreviation_stays_in_mode () =
+  let model, _ = Pelzl_model.init Pelzl_model.Classic () in
+  let model = model |> classic_key '\'' |> classic_type "nosuch" |> classic_enter in
+  check bool "stays in abbrev mode" true
+    (match model.classic_mode with ClassicAbbrev OperationAbbrev -> true | _ -> false);
+  check (option string) "error" (Some "unknown abbreviation: nosuch") model.error_msg
+
+let test_classic_constant_mode_pushes_constant () =
+  let model, _ = Pelzl_model.init Pelzl_model.Classic () in
+  let model = model |> classic_key 'C' |> classic_type "g" |> classic_enter in
+  match stack_peek 1 model.calc.stack with
+  | RpcFloatUnit (f, units) ->
+      check (float 1e-9) "g" 9.80665 f;
+      check bool "has units" true (units <> Units.empty_unit)
+  | _ -> fail "expected constant value"
+
+let test_classic_variable_mode_and_eval () =
+  let model, _ = Pelzl_model.init Pelzl_model.Classic () in
+  let model =
+    { model with entry = "42"; entry_cursor = 2 }
+    |> classic_enter
+    |> classic_key '@'
+    |> classic_type "foo"
+    |> classic_enter
+    |> classic_key 'S'
+    |> classic_key '@'
+    |> classic_type "foo"
+    |> classic_enter
+    |> classic_key ';'
+  in
+  check int "stored variable eval" 42 (top_int model)
+
+let test_classic_variable_completion_cycles () =
+  let model, _ = Pelzl_model.init Pelzl_model.Classic () in
+  Hashtbl.replace (get_variables model.calc) "foo" (RpcInt (Big_int.big_int_of_int 1));
+  Hashtbl.replace (get_variables model.calc) "fop" (RpcInt (Big_int.big_int_of_int 2));
+  let model = model |> classic_key '@' |> classic_type "fo" in
+  let model, _ = Pelzl_update.update (Key_input (key Input.Key.Tab)) model in
+  check string "first completion" "foo" model.entry;
+  let model, _ = Pelzl_update.update (Key_input (key Input.Key.Tab)) model in
+  check string "second completion" "fop" model.entry
+
+let test_classic_browse_echo_and_drop_selected () =
+  let model = model_with_ints [1; 2; 3] in
+  let model =
+    model
+    |> fun m -> fst (Pelzl_update.update (Key_input (key Input.Key.Up)) m)
+    |> fun m -> fst (Pelzl_update.update (Key_input (key Input.Key.Up)) m)
+    |> classic_enter
+  in
+  check int "echo selected level 2" 2 (top_int model);
+  let model =
+    model
+    |> fun m -> fst (Pelzl_update.update (Key_input (key Input.Key.Up)) m)
+    |> fun m -> fst (Pelzl_update.update (Key_input (key Input.Key.Up)) m)
+    |> classic_key 'd'
+  in
+  check int "drop selected length" 3 (stack_length model.calc.stack);
+  check int "top after drop selected" 2 (top_int model)
+
+let test_classic_browse_keep_and_roll () =
+  let model = model_with_ints [1; 2; 3] in
+  let model =
+    model
+    |> fun m -> fst (Pelzl_update.update (Key_input (key Input.Key.Up)) m)
+    |> fun m -> fst (Pelzl_update.update (Key_input (key Input.Key.Up)) m)
+    |> classic_key 'k'
+  in
+  check int "keep selected length" 1 (stack_length model.calc.stack);
+  check int "kept selected" 2 (top_int model);
+  let model = model_with_ints [1; 2; 3] in
+  let model =
+    model
+    |> fun m -> fst (Pelzl_update.update (Key_input (key Input.Key.Up)) m)
+    |> fun m -> fst (Pelzl_update.update (Key_input (key Input.Key.Up)) m)
+    |> classic_key 'r'
+  in
+  check int "roll selected range" 2 (top_int model)
+
 let test_unit_formatting_example_parses () =
   let data = one_deg "1_N*nm^2*kg/s/in^-3*GHz^2.34" in
   check bool "unit formatting example has units"
@@ -297,6 +411,20 @@ let manual_example_tests =
     ("external editor multiple entries example", `Quick,
      test_external_editor_multiple_entries_example);
     ("function shortcut examples", `Quick, test_function_shortcut_examples);
+    ("classic operation abbreviation executes functions", `Quick,
+     test_classic_operation_abbreviation_executes_functions);
+    ("classic command abbreviation executes commands", `Quick,
+     test_classic_command_abbreviation_executes_commands);
+    ("classic unknown abbreviation stays in mode", `Quick,
+     test_classic_unknown_abbreviation_stays_in_mode);
+    ("classic constant mode pushes constant", `Quick,
+     test_classic_constant_mode_pushes_constant);
+    ("classic variable mode and eval", `Quick, test_classic_variable_mode_and_eval);
+    ("classic variable completion cycles", `Quick,
+     test_classic_variable_completion_cycles);
+    ("classic browse echo and drop selected", `Quick,
+     test_classic_browse_echo_and_drop_selected);
+    ("classic browse keep and roll", `Quick, test_classic_browse_keep_and_roll);
     ("unit formatting example parses", `Quick, test_unit_formatting_example_parses);
     ("polar examples support rad and degree parsing", `Quick,
      test_rad_parser_variant_for_polar_examples);

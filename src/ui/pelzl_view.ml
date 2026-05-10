@@ -8,28 +8,102 @@ let get_mode_str calc =
     (match m.complex with Rect -> "RECT" | Polar -> "POLAR")
 
 (* -------------------------------------------------------------------- *)
-(* Classic (Orpie) view -- unchanged behaviour.                         *)
+(* Classic (Orpie) view.                                                *)
 (* -------------------------------------------------------------------- *)
+
+let starts_with ~prefix s =
+  let n = String.length prefix in
+  String.length s >= n && String.sub s 0 n = prefix
+
+let take n xs =
+  let rec aux n xs acc =
+    if n <= 0 then List.rev acc
+    else
+      match xs with
+      | [] -> List.rev acc
+      | x :: rest -> aux (n - 1) rest (x :: acc)
+  in
+  aux n xs []
+
+let scroll_string offset s =
+  let offset = max 0 offset in
+  if offset >= String.length s then "" else String.sub s offset (String.length s - offset)
+
+let variable_names calc =
+  Hashtbl.fold
+    (fun name _ acc -> name :: acc)
+    (Pelzl_engine.get_variables calc)
+    []
+  |> List.sort String.compare
+
+let matching_names prefix names =
+  names |> List.filter (starts_with ~prefix) |> take 10
+
+let modal_help model =
+  let candidates label names =
+    let matches = matching_names model.entry names in
+    let body =
+      match matches with
+      | [] -> "  no matches\n"
+      | xs -> String.concat "" (List.map (Printf.sprintf "  %s\n") xs)
+    in
+    Printf.sprintf "\n%s:\n%s" label body
+  in
+  match model.classic_mode with
+  | ClassicMain -> ""
+  | ClassicAbbrev OperationAbbrev ->
+      candidates "Abbreviations" !Rcfile.abbrev_commands
+  | ClassicAbbrev ConstantAbbrev ->
+      candidates "Constants" !Rcfile.constant_symbols
+  | ClassicVariable _ ->
+      candidates "Variables" (variable_names model.calc)
+  | ClassicBrowse { selected_level; hscroll } ->
+      Printf.sprintf "\nBrowse:\n  level: %d\n  hscroll: %d\n" selected_level hscroll
+
+let entry_prefix = function
+  | ClassicMain | ClassicBrowse _ -> ""
+  | ClassicAbbrev OperationAbbrev -> "'"
+  | ClassicAbbrev ConstantAbbrev -> "C "
+  | ClassicVariable _ -> "@ "
 
 let classic_view model =
   let view_width = 80 in
   let max_stack_lines = max 1 (model.height - 2) in
   let left_width = 38 in
   let stack_width = view_width - left_width in
-  let stack_lines =
+  let selected =
+    match model.classic_mode with
+    | ClassicBrowse { selected_level; hscroll } -> Some (selected_level, hscroll)
+    | _ -> None
+  in
+  let selected_style = Mosaic.Ansi.Style.make ~inverse:true () in
+  let stack_nodes =
     List.init max_stack_lines (fun i ->
       let idx = max_stack_lines - i in
-      let line = Pelzl_engine.get_display_line idx model.calc in
+      let selected_line =
+        match selected with
+        | Some (level, _) -> level = idx
+        | None -> false
+      in
+      let line =
+        let raw = Pelzl_engine.get_display_line idx model.calc in
+        match selected with
+        | Some (_, hscroll) when selected_line -> scroll_string hscroll raw
+        | _ -> raw
+      in
       let num_str = Printf.sprintf "%2d:" idx in
       let bar = "| " in
       let prefix = bar ^ num_str in
-      if line = "" then prefix
-      else
-        let pad_len = stack_width - String.length prefix - String.length line in
-        let pad = if pad_len > 0 then String.make pad_len ' ' else " " in
-        prefix ^ pad ^ line)
+      let text =
+        if line = "" then prefix
+        else
+          let pad_len = stack_width - String.length prefix - String.length line in
+          let pad = if pad_len > 0 then String.make pad_len ' ' else " " in
+          prefix ^ pad ^ line
+      in
+      if selected_line then Mosaic.text ~style:selected_style (text ^ "\n")
+      else Mosaic.text (text ^ "\n"))
   in
-  let stack_text = String.concat "\n" stack_lines in
   let m = Pelzl_engine.get_modes model.calc in
   let angle_str = match m.angle with Rad -> "RAD" | Deg -> "DEG" in
   let base_str = match m.base with Bin -> "BIN" | Oct -> "OCT" | Hex -> "HEX" | Dec -> "DEC" in
@@ -56,7 +130,8 @@ let classic_view model =
     "  abbreviation entry mode : '         \n" ^
     "  stack browsing mode     : <up>      \n" ^
     "  refresh display         : C-L       \n" ^
-    "  quit                    : Q         "
+    "  quit                    : Q         " ^
+    modal_help model
   in
   let left_pane =
     Mosaic.box ~display:Mosaic.Display.Block
@@ -66,7 +141,7 @@ let classic_view model =
   let right_pane =
     Mosaic.box ~display:Mosaic.Display.Block
       ~size:(Mosaic.size_wh (Mosaic.px stack_width) (Mosaic.pct 100))
-      [ Mosaic.text stack_text ]
+      stack_nodes
   in
   let main_area =
     Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row
@@ -83,6 +158,7 @@ let classic_view model =
         let cursor_style = Mosaic.Ansi.Style.make ~inverse:true () in
         Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row
           [ Mosaic.box ~flex_grow:1. [];
+            Mosaic.text (entry_prefix model.classic_mode);
             Mosaic.text model.entry;
             Mosaic.text ~style:cursor_style " " ]
   in

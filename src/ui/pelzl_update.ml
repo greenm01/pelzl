@@ -66,6 +66,9 @@ let with_entry entry model =
 let reset_entry model =
   { model with entry = ""; entry_cursor = 0; entry_mode = Normal }
 
+let exit_classic_mode model =
+  { (reset_entry model) with classic_mode = ClassicMain; error_msg = None }
+
 let insert_text s model =
   let cursor = clamp_cursor model.entry model.entry_cursor in
   let before = String.sub model.entry 0 cursor in
@@ -114,6 +117,21 @@ let cursor_home model = { model with entry_cursor = 0; error_msg = None }
 
 let cursor_end model =
   { model with entry_cursor = String.length model.entry; error_msg = None }
+
+let starts_with ~prefix s =
+  let n = String.length prefix in
+  String.length s >= n && String.sub s 0 n = prefix
+
+let resolve_prefixed symbols translate prefix =
+  let exact = List.find_opt (fun s -> s = prefix) symbols in
+  let symbol =
+    match exact with
+    | Some s -> Some s
+    | None -> List.find_opt (starts_with ~prefix) symbols
+  in
+  match symbol with
+  | Some s -> Some (s, translate s)
+  | None -> None
 
 let toggle_minus model =
   let cursor = clamp_cursor model.entry model.entry_cursor in
@@ -308,6 +326,82 @@ let exec_command model op =
   with
   | Invalid_argument s -> { model with error_msg = Some s }
   | Pelzl_engine.Stack_error s -> { model with error_msg = Some s }
+
+let push_constant symbol unit_def model =
+  let calc = Pelzl_engine.state_backup model.calc in
+  let value =
+    Pelzl_engine.RpcFloatUnit
+      (unit_def.Units.coeff, unit_def.Units.comp_units)
+  in
+  let calc =
+    { calc with stack = Pelzl_engine.stack_push value calc.Pelzl_engine.stack }
+  in
+  add_trace (Printf.sprintf "Const %s" symbol)
+    { (exit_classic_mode model) with calc }
+
+let begin_modal modal model =
+  if model.entry <> "" then
+    { model with error_msg = Some "finish entry before changing modes" }
+  else
+    { (reset_entry model) with classic_mode = modal; error_msg = None }
+
+let clamp_browse_level calc selected =
+  let len = Pelzl_engine.stack_length calc.Pelzl_engine.stack in
+  if len = 0 then 0 else max 1 (min selected len)
+
+let set_browse_mode model selected hscroll =
+  let selected = clamp_browse_level model.calc selected in
+  if selected = 0 then exit_classic_mode model
+  else
+    { model with
+      classic_mode =
+        ClassicBrowse { selected_level = selected; hscroll = max 0 hscroll };
+      error_msg = None }
+
+let mutate_browse_stack model selected hscroll f next_selected =
+  try
+    let calc = Pelzl_engine.state_backup model.calc in
+    let calc = { calc with stack = f calc.Pelzl_engine.stack } in
+    set_browse_mode { model with calc } next_selected hscroll
+  with
+  | Invalid_argument s -> { model with error_msg = Some s }
+  | Pelzl_engine.Stack_error s -> { model with error_msg = Some s }
+
+let exec_browse model selected hscroll op =
+  match op with
+  | Operations.EndBrowse ->
+      exit_classic_mode model
+  | Operations.ScrollLeft ->
+      set_browse_mode model selected (hscroll - 1)
+  | Operations.ScrollRight ->
+      set_browse_mode model selected (hscroll + 1)
+  | Operations.PrevLine ->
+      set_browse_mode model (selected + 1) hscroll
+  | Operations.NextLine ->
+      set_browse_mode model (selected - 1) hscroll
+  | Operations.Echo ->
+      mutate_browse_stack model selected hscroll
+        (Pelzl_engine.stack_echo selected) 1
+  | Operations.Drop1 ->
+      mutate_browse_stack model selected hscroll
+        (Pelzl_engine.stack_delete selected) selected
+  | Operations.DropN ->
+      mutate_browse_stack model selected hscroll
+        (Pelzl_engine.stack_deleteN selected) 1
+  | Operations.Keep ->
+      mutate_browse_stack model selected hscroll
+        (Pelzl_engine.stack_keep selected) 1
+  | Operations.KeepN ->
+      mutate_browse_stack model selected hscroll
+        (Pelzl_engine.stack_keepN selected) selected
+  | Operations.RollDown ->
+      mutate_browse_stack model selected hscroll
+        (Pelzl_engine.stack_rolldown selected) selected
+  | Operations.RollUp ->
+      mutate_browse_stack model selected hscroll
+        (Pelzl_engine.stack_rollup selected) selected
+  | Operations.ViewEntry | Operations.EditEntry ->
+      { model with error_msg = Some "external editor not implemented" }
 
 let exec_edit model op =
   match op with
@@ -544,6 +638,41 @@ let take_pending model =
 
 let quit_cmd = Mosaic.Cmd.quit
 
+let execute_classic_operation model op =
+  match op with
+  | Operations.Function f ->
+      exec_function model f, Mosaic.Cmd.none
+  | Operations.Command c ->
+      (match c with
+      | Operations.Quit ->
+          model, quit_cmd
+      | Operations.CycleHelp ->
+          { model with show_help = not model.show_help }, Mosaic.Cmd.none
+      | Operations.BeginAbbrev ->
+          begin_modal (ClassicAbbrev OperationAbbrev) model, Mosaic.Cmd.none
+      | Operations.BeginConst ->
+          begin_modal (ClassicAbbrev ConstantAbbrev) model, Mosaic.Cmd.none
+      | Operations.BeginVar ->
+          begin_modal (ClassicVariable { completion_prefix = None }) model,
+          Mosaic.Cmd.none
+      | Operations.BeginBrowse ->
+          if Pelzl_engine.stack_length model.calc.Pelzl_engine.stack = 0 then
+            { model with error_msg = Some "empty stack" }, Mosaic.Cmd.none
+          else
+            set_browse_mode (reset_entry model) 1 0, Mosaic.Cmd.none
+      | Operations.View | Operations.EditInput ->
+          { model with error_msg = Some "external editor not implemented" },
+          Mosaic.Cmd.none
+      | _ ->
+          exec_command model c, Mosaic.Cmd.none)
+  | Operations.Edit e ->
+      exec_edit model e, Mosaic.Cmd.none
+  | Operations.Browse _
+  | Operations.Abbrev _
+  | Operations.IntEdit _
+  | Operations.VarEdit _ ->
+      model, Mosaic.Cmd.none
+
 let is_ctrl_char (data : Input.Key.event) ch =
   match data.key with
   | Char c ->
@@ -557,6 +686,107 @@ let is_text_char c =
   Uchar.is_char c
   && let code = Uchar.to_int c in
      code >= 0x20 && code <> 0x7f
+
+let is_backspace_key (data : Input.Key.event) =
+  match data.key with
+  | Backspace -> true
+  | Char c -> Uchar.to_int c = 0x7f
+  | _ -> false
+
+let execute_abbrev model =
+  if model.entry = "" then
+    { model with error_msg = Some "empty abbreviation" }, Mosaic.Cmd.none
+  else
+  match resolve_prefixed !Rcfile.abbrev_commands Rcfile.translate_abbrev model.entry with
+  | None ->
+      { model with error_msg = Some ("unknown abbreviation: " ^ model.entry) },
+      Mosaic.Cmd.none
+  | Some (_symbol, op) ->
+      execute_classic_operation (exit_classic_mode model) op
+
+let execute_constant model =
+  if model.entry = "" then
+    { model with error_msg = Some "empty constant" }, Mosaic.Cmd.none
+  else
+  match resolve_prefixed !Rcfile.constant_symbols Rcfile.translate_constant model.entry with
+  | None ->
+      { model with error_msg = Some ("unknown constant: " ^ model.entry) },
+      Mosaic.Cmd.none
+  | Some (symbol, unit_def) ->
+      push_constant symbol unit_def model, Mosaic.Cmd.none
+
+let enter_variable model =
+  if model.entry = "" then
+    { model with error_msg = Some "empty variable name" }, Mosaic.Cmd.none
+  else
+    let calc = Pelzl_engine.state_backup model.calc in
+    let value = Pelzl_engine.RpcVariable model.entry in
+    let calc =
+      { calc with stack = Pelzl_engine.stack_push value calc.Pelzl_engine.stack }
+    in
+    add_trace (Printf.sprintf "Variable %s" model.entry)
+      { (exit_classic_mode model) with calc },
+    Mosaic.Cmd.none
+
+let reset_variable_completion model =
+  { model with classic_mode = ClassicVariable { completion_prefix = None } }
+
+let complete_variable completion_prefix model =
+  let prefix = Option.value completion_prefix ~default:model.entry in
+  let vars = Pelzl_engine.get_variables model.calc in
+  let matches =
+    Hashtbl.fold
+      (fun name _ acc ->
+        if starts_with ~prefix name then name :: acc else acc)
+      vars []
+    |> List.sort String.compare
+  in
+  match matches with
+  | [] -> { model with error_msg = Some "no matching variable" }
+  | _ ->
+      let next =
+        match List.find_index (fun name -> name = model.entry) matches with
+        | Some i -> List.nth matches ((i + 1) mod List.length matches)
+        | None -> List.hd matches
+      in
+      { (with_entry next { model with error_msg = None })
+        with classic_mode = ClassicVariable { completion_prefix = Some prefix } }
+
+let handle_classic_abbrev kind model (data : Input.Key.event) =
+  if data.key = Enter then
+    match kind with
+    | OperationAbbrev -> execute_abbrev model
+    | ConstantAbbrev -> execute_constant model
+  else if is_backspace_key data then
+    delete_before_cursor model, Mosaic.Cmd.none
+  else
+    match data.key with
+    | Char c when Uchar.equal c (Uchar.of_char '\'') ->
+        exit_classic_mode model, Mosaic.Cmd.none
+    | Char c when not data.modifier.ctrl && not data.modifier.alt && is_text_char c ->
+        insert_text (String.make 1 (Uchar.to_char c)) model, Mosaic.Cmd.none
+    | _ -> { model with error_msg = None }, Mosaic.Cmd.none
+
+let handle_classic_variable completion_prefix model (data : Input.Key.event) =
+  if data.key = Enter then enter_variable model
+  else if data.key = Tab then complete_variable completion_prefix model, Mosaic.Cmd.none
+  else if is_backspace_key data then
+    reset_variable_completion (delete_before_cursor model), Mosaic.Cmd.none
+  else
+    match data.key with
+    | Char c when Uchar.equal c (Uchar.of_char '@') ->
+        exit_classic_mode model, Mosaic.Cmd.none
+    | Char c when not data.modifier.ctrl && not data.modifier.alt && is_text_char c ->
+        reset_variable_completion (insert_text (String.make 1 (Uchar.to_char c)) model),
+        Mosaic.Cmd.none
+    | _ -> { model with error_msg = None }, Mosaic.Cmd.none
+
+let handle_classic_browse model key_binding selected_level hscroll =
+  try
+    let op = Rcfile.browse_of_key key_binding in
+    exec_browse model selected_level hscroll op, Mosaic.Cmd.none
+  with Not_found ->
+    { model with error_msg = None }, Mosaic.Cmd.none
 
 let update msg model =
   match msg with
@@ -636,7 +866,16 @@ let update msg model =
                       && is_text_char c ->
             insert_text (String.make 1 (Uchar.to_char c)) model, Mosaic.Cmd.none
         | _ -> { model with error_msg = None }, Mosaic.Cmd.none
-      else if model.entry <> "" && is_enter then
+      else
+        (match model.classic_mode with
+        | ClassicAbbrev kind ->
+            handle_classic_abbrev kind model data
+        | ClassicVariable { completion_prefix } ->
+            handle_classic_variable completion_prefix model data
+        | ClassicBrowse { selected_level; hscroll } ->
+            handle_classic_browse model key_binding selected_level hscroll
+        | ClassicMain ->
+      if model.entry <> "" && is_enter then
         push_entry model, Mosaic.Cmd.none
       else
         let op_opt =
@@ -658,20 +897,13 @@ let update msg model =
                Some (Operations.Edit e))
         in
         (match op_opt with
-        | Some (Operations.Function f) -> exec_function model f, Mosaic.Cmd.none
-        | Some (Operations.Command c) ->
-            if c = Operations.Quit then model, quit_cmd
-            else if c = Operations.CycleHelp then { model with show_help = not model.show_help }, Mosaic.Cmd.none
-            else exec_command model c, Mosaic.Cmd.none
-        | Some (Operations.Edit e) -> exec_edit model e, Mosaic.Cmd.none
-        | Some (Operations.Browse _) | Some (Operations.Abbrev _) | Some (Operations.IntEdit _) | Some (Operations.VarEdit _) ->
-            model, Mosaic.Cmd.none
+        | Some op -> execute_classic_operation model op
         | None ->
             (match data.key with
             | Char c when not data.modifier.ctrl && not data.modifier.alt
                           && is_text_char c ->
                 insert_text (String.make 1 (Uchar.to_char c)) model, Mosaic.Cmd.none
-            | _ -> { model with error_msg = None }, Mosaic.Cmd.none))
+            | _ -> { model with error_msg = None }, Mosaic.Cmd.none)))
   | Backspace ->
       delete_before_cursor model, Mosaic.Cmd.none
   | Enter ->

@@ -2,6 +2,14 @@ type entry_mode = Normal | Integer | Complex | Matrix | Units
 
 type ui_mode = Repl | Classic
 
+type classic_abbrev_kind = OperationAbbrev | ConstantAbbrev
+
+type classic_mode =
+  | ClassicMain
+  | ClassicAbbrev of classic_abbrev_kind
+  | ClassicVariable of { completion_prefix : string option }
+  | ClassicBrowse of { selected_level : int; hscroll : int }
+
 (* A committed REPL exchange: the input (echoed) and either a result
    string or an error message. Used only by the inline Repl mode to
    render scrollback via [Mosaic.Cmd.static_commit]. *)
@@ -15,6 +23,7 @@ type model = {
   entry : string;
   entry_cursor : int;
   entry_mode : entry_mode;
+  classic_mode : classic_mode;
   ui_mode : ui_mode;
   slogan : string;
   error_msg : string option;          (* transient, cleared on next keystroke *)
@@ -147,8 +156,8 @@ let init mode () =
     | Repl -> Pelzl_history.load ()
     | Classic -> []
   in
-  ({ calc; entry = ""; entry_cursor = 0; entry_mode = Normal; ui_mode = mode;
-     slogan; error_msg = None; history; history_idx = None;
-     history_save = ""; show_help = false; help_page = 0;
-     width = 80; height = 24; pending_commit = None },
+  ({ calc; entry = ""; entry_cursor = 0; entry_mode = Normal;
+     classic_mode = ClassicMain; ui_mode = mode; slogan; error_msg = None;
+     history; history_idx = None; history_save = ""; show_help = false;
+     help_page = 0; width = 80; height = 24; pending_commit = None },
    Mosaic.Cmd.none)
