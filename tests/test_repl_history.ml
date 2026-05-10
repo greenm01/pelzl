@@ -6,6 +6,12 @@ let model_repl () =
   let m, _cmd = init Repl () in
   m
 
+let contains_substring haystack needle =
+  try
+    ignore (Str.search_forward (Str.regexp_string needle) haystack 0);
+    true
+  with Not_found -> false
+
 let with_history hist m =
   { m with history = hist; history_idx = None; history_save = "";
            entry_cursor = String.length m.entry }
@@ -35,18 +41,26 @@ let test_meta_quit () =
       | `Unknown -> Format.pp_print_string ppf "unknown"))
     ":quit" `Quit (handle_meta m ":quit")
 
-let test_meta_orpie () =
+let test_meta_rpn () =
   let m = model_repl () in
-  match handle_meta m ":orpie" with
+  match handle_meta m ":rpn" with
   | `Switch Classic -> ()
   | _ -> fail "expected `Switch Classic"
+
+let test_meta_orpie_is_unknown () =
+  let m = model_repl () in
+  match handle_meta m ":orpie" with
+  | `Commit (_m', Repl_msg txt) ->
+      check string "unknown orpie" "  unknown command: :orpie" txt
+  | _ -> fail "expected unknown command"
 
 let test_meta_help () =
   let m = model_repl () in
   match handle_meta m ":help" with
   | `Commit (m', Repl_msg txt) ->
       check string "entry cleared" "" m'.entry;
-      check bool "contains help" true (String.contains txt 'a')
+      check bool "contains :rpn" true (contains_substring txt ":rpn");
+      check bool "does not contain :orpie" false (contains_substring txt ":orpie")
   | _ -> fail "expected `Commit with Repl_msg"
 
 let test_meta_unknown () =
@@ -169,10 +183,10 @@ let test_submit_quit () =
   check bool "quit" true quit;
   check string "entry cleared" "" m'.entry
 
-let test_submit_orpie_switch () =
+let test_submit_rpn_switch () =
   let m = model_repl () in
-  let m = { m with entry = ":orpie"; entry_cursor = 6; error_msg = Some "old" } in
-  let m', action = submit_repl_action m ":orpie" in
+  let m = { m with entry = ":rpn"; entry_cursor = 4; error_msg = Some "old" } in
+  let m', action = submit_repl_action m ":rpn" in
   check bool "switch action" true
     (match action with Repl_switch Classic -> true | _ -> false);
   check bool "classic mode" true (m'.ui_mode = Classic);
@@ -201,7 +215,8 @@ let test_bind_ans () =
 let repl_history_tests = [
   ("trim_ws strips spaces and tabs", `Quick, test_trim_ws);
   ("meta :quit returns `Quit", `Quick, test_meta_quit);
-  ("meta :orpie requests classic switch", `Quick, test_meta_orpie);
+  ("meta :rpn requests classic switch", `Quick, test_meta_rpn);
+  ("meta :orpie is unknown", `Quick, test_meta_orpie_is_unknown);
   ("meta :help returns help message", `Quick, test_meta_help);
   ("meta unknown command", `Quick, test_meta_unknown);
   ("push_history prepends and dedups", `Quick, test_push_history);
@@ -213,6 +228,6 @@ let repl_history_tests = [
   ("submit algebraic evaluates", `Quick, test_submit_algebraic);
   ("submit error records Repl_err", `Quick, test_submit_error);
   ("submit :quit requests exit", `Quick, test_submit_quit);
-  ("submit :orpie requests mode switch", `Quick, test_submit_orpie_switch);
+  ("submit :rpn requests mode switch", `Quick, test_submit_rpn_switch);
   ("bind_ans stores result", `Quick, test_bind_ans);
 ]

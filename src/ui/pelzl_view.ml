@@ -8,7 +8,7 @@ let get_mode_str calc =
     (match m.complex with Rect -> "RECT" | Polar -> "POLAR")
 
 (* -------------------------------------------------------------------- *)
-(* Classic (Orpie) view.                                                *)
+(* Classic RPN view.                                                    *)
 (* -------------------------------------------------------------------- *)
 
 let starts_with ~prefix s =
@@ -56,6 +56,28 @@ let fit_lines width height lines =
   in
   take height lines []
 
+let abbreviation_help_lines =
+  [
+    "                                      ";
+    "Abbreviations:                        ";
+    " Common Functions:                    ";
+    "  sin  asin  cos  acos  tan  atan     ";
+    "  exp  ln  10^  log10  sq  sqrt  inv  ";
+    "  gamma  lngamma  erf  erfc  trans    ";
+    "  re  im  mod  floor  ceil  toint     ";
+    "  toreal  eval  store  purge          ";
+    "                                      ";
+    " Change Modes:                        ";
+    "  rad  deg  bin  oct  dec  hex  rect  ";
+    "  polar                               ";
+    "                                      ";
+    " Miscellaneous:                       ";
+    "  pi  undo  view                      ";
+    "                                      ";
+    " execute abbreviation : <return>      ";
+    " cancel abbreviation  : '             ";
+  ]
+
 let modal_help_lines model =
   let candidates label names =
     let matches = matching_names model.entry names in
@@ -66,8 +88,7 @@ let modal_help_lines model =
   in
   match model.classic_mode with
   | ClassicMain -> []
-  | ClassicAbbrev OperationAbbrev ->
-      candidates "Abbreviations" !Rcfile.abbrev_commands
+  | ClassicAbbrev OperationAbbrev -> abbreviation_help_lines
   | ClassicAbbrev ConstantAbbrev ->
       candidates "Constants" !Rcfile.constant_symbols
   | ClassicVariable _ ->
@@ -88,12 +109,14 @@ let classic_help_rows model left_width height =
   let angle_str = match m.angle with Rad -> "RAD" | Deg -> "DEG" in
   let base_str = match m.base with Bin -> "BIN" | Oct -> "OCT" | Hex -> "HEX" | Dec -> "DEC" in
   let complex_str = match m.complex with Rect -> "REC" | Polar -> "POL" in
-  [
+  let header_lines = [
     Printf.sprintf "Pelzl v1.0 -- %-24s " model.slogan;
     "--------------------------------------";
     "Calculator Modes:                     ";
     Printf.sprintf "  angle: %-3s  base: %-3s  complex: %-3s " angle_str base_str complex_str;
     "                                      ";
+  ] in
+  let main_lines = [
     "Common Operations:                    ";
     "  enter    : <return>                 ";
     "  drop     : \\                        ";
@@ -112,8 +135,13 @@ let classic_help_rows model left_width height =
     "  repl mode               : 'repl RET ";
     "  refresh display         : C-L       ";
     "  quit                    : Q         ";
-  ]
-  @ modal_help_lines model
+  ] in
+  let lines =
+    match model.classic_mode with
+    | ClassicAbbrev OperationAbbrev -> header_lines @ abbreviation_help_lines
+    | _ -> header_lines @ main_lines @ modal_help_lines model
+  in
+  lines
   |> fit_lines left_width height
 
 let classic_stack_rows model stack_width height =
@@ -330,6 +358,9 @@ let preview_for calc s : string option =
          | Ok (_, display) -> Some display
          | Error _ -> None)
 
+let repl_hint_text =
+  "  ↑↓ history  :rpn  :help  :vars  :quit  Ctrl-D exit"
+
 let repl_view model =
   let prompt =
     Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row (
@@ -351,8 +382,7 @@ let repl_view model =
   in
   let hint_row =
     Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row
-      [ Mosaic.text ~style:style_dim
-          "  ↑↓ history  :help  :vars  :quit  Ctrl-D exit" ]
+      [ Mosaic.text ~style:style_dim repl_hint_text ]
   in
   Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Column
     [ prompt; status_row; hint_row ]

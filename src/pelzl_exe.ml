@@ -3,8 +3,8 @@ let mode = ref Pelzl_model.Repl
 let speclist = [
   ("--repl",  Arg.Unit (fun () -> mode := Repl),
               "Use sober algebraic REPL (default)");
-  ("--orpie", Arg.Unit (fun () -> mode := Classic),
-              "Use classic Orpie RPN UI");
+  ("--rpn", Arg.Unit (fun () -> mode := Classic),
+              "Use classic RPN UI");
 ]
 
 let usage_msg = "Pelzl -- a calculator for the console"

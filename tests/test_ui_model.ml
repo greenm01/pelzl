@@ -292,12 +292,12 @@ let test_repl_colon_quit_enter_returns_quit () =
   let _model', cmd = update (Key_input (key Input.Key.Enter)) model in
   check bool "quit command" true (cmd_is_quit cmd)
 
-let test_repl_orpie_enter_requests_mode_switch () =
+let test_repl_rpn_enter_requests_mode_switch () =
   let requested = ref None in
   let on_mode_switch mode model = requested := Some (mode, model) in
   let model, _cmd = init Repl () in
   let model =
-    { model with entry = ":orpie"; entry_cursor = 6;
+    { model with entry = ":rpn"; entry_cursor = 4;
                  calc = (classic_with_ints [42]).calc }
   in
   let model', cmd =
@@ -310,6 +310,12 @@ let test_repl_orpie_enter_requests_mode_switch () =
     (match !requested with
      | Some (Classic, m) -> m.ui_mode = Classic && top_int m = 42
      | _ -> false)
+
+let test_repl_hint_names_rpn () =
+  check bool "hint contains :rpn" true
+    (contains_substring Pelzl_view.repl_hint_text ":rpn");
+  check bool "hint omits :orpie" false
+    (contains_substring Pelzl_view.repl_hint_text ":orpie")
 
 let test_classic_repl_abbrev_requests_mode_switch () =
   Rcfile.register_abbrev "repl" (Operations.Command Operations.SwitchRepl);
@@ -402,6 +408,37 @@ let test_classic_modal_help_is_clipped_to_panel () =
   check int "row count" 8 (List.length rows);
   List.iter (fun row -> check int "row width" 38 (String.length row)) rows
 
+let test_classic_abbrev_help_matches_orpie_static_panel () =
+  let model =
+    { (classic_with_ints []) with classic_mode = ClassicAbbrev OperationAbbrev }
+  in
+  let rows = Pelzl_view.classic_help_rows model 38 24 in
+  check bool "title is Pelzl" true
+    (match rows with row :: _ -> contains_substring row "Pelzl v1.0" | _ -> false);
+  let text = String.concat "\n" rows in
+  List.iter
+    (fun expected ->
+      check bool expected true (contains_substring text expected))
+    [
+      "Abbreviations:";
+      " Common Functions:";
+      "  sin  asin  cos  acos  tan  atan";
+      "  exp  ln  10^  log10  sq  sqrt  inv";
+      "  gamma  lngamma  erf  erfc  trans";
+      "  re  im  mod  floor  ceil  toint";
+      "  toreal  eval  store  purge";
+      " Change Modes:";
+      "  rad  deg  bin  oct  dec  hex  rect";
+      "  polar";
+      " Miscellaneous:";
+      "  pi  undo  view";
+      " execute abbreviation : <return>";
+      " cancel abbreviation  : '";
+    ];
+  check bool "does not show repl abbreviation" false
+    (contains_substring text "'repl");
+  List.iter (fun row -> check int "row width" 38 (String.length row)) rows
+
 let ui_tests = [
   ("model init creates empty state", `Quick, test_init_empty);
   ("random slogan initialization", `Quick, test_random_slogan);
@@ -433,8 +470,9 @@ let ui_tests = [
   ("raw Ctrl-Q quits repl even with entry", `Quick, test_raw_ctrl_q_quits_repl_even_with_entry);
   ("uppercase Ctrl-Q quits repl even with entry", `Quick, test_uppercase_ctrl_q_quits_repl_even_with_entry);
   ("repl :quit enter returns quit", `Quick, test_repl_colon_quit_enter_returns_quit);
-  ("repl :orpie enter requests mode switch", `Quick,
-   test_repl_orpie_enter_requests_mode_switch);
+  ("repl :rpn enter requests mode switch", `Quick,
+   test_repl_rpn_enter_requests_mode_switch);
+  ("repl hint names :rpn", `Quick, test_repl_hint_names_rpn);
   ("classic 'repl abbreviation requests mode switch", `Quick,
    test_classic_repl_abbrev_requests_mode_switch);
   ("raw Ctrl-D quits repl only when empty", `Quick, test_raw_ctrl_d_quits_repl_only_when_entry_empty);
@@ -443,4 +481,6 @@ let ui_tests = [
   ("classic view rows are fixed width", `Quick, test_classic_view_rows_are_fixed_width);
   ("classic browse view marks one fixed row", `Quick, test_classic_browse_view_marks_one_fixed_row);
   ("classic modal help is clipped to panel", `Quick, test_classic_modal_help_is_clipped_to_panel);
+  ("classic abbreviation help matches Orpie static panel", `Quick,
+   test_classic_abbrev_help_matches_orpie_static_panel);
 ]

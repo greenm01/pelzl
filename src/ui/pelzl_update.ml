@@ -569,7 +569,7 @@ let meta_help_text =
     "  numbers    : 1.5e3, ffh, 101b, 17o, 42d      ";
     "  variables  : name = expr   (also 'ans')      ";
     "  history    : up/down arrows recall lines     ";
-    "  commands   : :orpie :vars :purge NAME :help  ";
+    "  commands   : :rpn :vars :purge NAME :help    ";
     "             : :quit                           ";
     "  exit       : :quit, Ctrl-D (empty), or Ctrl-Q";
   ]
@@ -612,7 +612,7 @@ let handle_meta model raw =
   in
   match parts with
   | [":quit"] | [":q"] | [":exit"] -> `Quit
-  | [":orpie"] | [":classic"] -> `Switch Classic
+  | [":rpn"] -> `Switch Classic
   | [":help"] | [":h"] | ["?"] ->
       `Commit (model, Repl_msg meta_help_text)
   | [":vars"] | [":v"] ->

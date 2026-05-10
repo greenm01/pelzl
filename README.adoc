@@ -11,7 +11,7 @@ This project is an evolution of the Orpie calculator and is dedicated to the mem
 * **Implicit Multiplication**: Support for concise notation, such as `5sin(30)` or `2x`.
 * **Variable Assignment**: Persist values with simple declarations: `x = 42`.
 * **Mathematical Functions**: Comprehensive support for `sin`, `cos`, `sqrt`, `ln`, and more.
-* **Classic RPN Mode**: Revert to the traditional stack-based workflow with the `--orpie` flag.
+* **Classic RPN Mode**: Revert to the traditional stack-based workflow with the `--rpn` flag.
 * **Mosaic TUI**: A responsive, colorful interface built on the Mosaic library.
 
 == Installation
@@ -44,7 +44,7 @@ Launch the algebraic REPL by running `pelzl`. To use the classic RPN interface, 
 
 [source,shell]
 ----
-pelzl --orpie
+pelzl --rpn
 ----
 
 Consult the `doc` directory for further details.
