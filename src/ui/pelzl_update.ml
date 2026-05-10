@@ -567,11 +567,12 @@ let meta_help_text =
     "             : sqrt sq ln log exp abs ceil floor";
     "             : gamma lngamma erf erfc fact     ";
     "  numbers    : 1.5e3, ffh, 101b, 17o, 42d      ";
+    "  constants  : pi tau e i                     ";
     "  variables  : name = expr   (also 'ans')      ";
     "  history    : up/down arrows recall lines     ";
     "  commands   : :vars :purge NAME :help         ";
     "  modes      : [Alt-R] RPN                     ";
-    "  quit       : [Ctrl-D] Quit, Ctrl-Q           ";
+    "  quit       : [Ctrl-Q/D] Quit                 ";
   ]
 
 let format_vars calc =
@@ -737,6 +738,11 @@ let style_err =
 let style_msg =
   Mosaic.Ansi.Style.make ~fg:Mosaic.Ansi.Color.Bright_black ()
 
+let repl_msg_lines s =
+  match String.split_on_char '\n' s with
+  | [] -> [""]
+  | lines -> lines
+
 let render_record (r : repl_record) =
   let row children =
     Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Row children
@@ -757,7 +763,12 @@ let render_record (r : repl_record) =
               Mosaic.text ~style:style_err error ];
       ]
   | Repl_msg s ->
-      Mosaic.text ~style:style_msg s
+      Mosaic.box ~display:Mosaic.Display.Flex ~flex_direction:Column
+        (List.map
+           (fun line ->
+             if line = "" then Mosaic.text " "
+             else Mosaic.text ~style:style_msg line)
+           (repl_msg_lines s))
 
 let take_pending model =
   match model.pending_commit with

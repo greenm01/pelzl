@@ -9,6 +9,23 @@ let display_of = function
 
 let trim s = String.trim s
 
+let top_data = function
+  | Ok (c, _) -> Pelzl_engine.stack_peek 1 c.Pelzl_engine.stack
+  | Error e -> failwith (pp_error e)
+
+let check_top_float label expected r =
+  match top_data r with
+  | Pelzl_engine.RpcFloatUnit (f, _) ->
+      check (float 1e-12) label expected f
+  | _ -> failwith ("expected float for " ^ label)
+
+let check_top_complex label expected_re expected_im r =
+  match top_data r with
+  | Pelzl_engine.RpcComplexUnit (z, _) ->
+      check (float 1e-12) (label ^ " real") expected_re z.Complex.re;
+      check (float 1e-12) (label ^ " imag") expected_im z.Complex.im
+  | _ -> failwith ("expected complex for " ^ label)
+
 let test_simple_arith () =
   let r = run (calc ()) "1+2*3" in
   check string "1+2*3" "7" (trim (display_of r))
@@ -72,6 +89,30 @@ let test_division () =
   let r = run (calc ()) "10/4" in
   check string "10/4" "2.5" (trim (display_of r))
 
+let test_builtin_constant_pi () =
+  check_top_float "pi" 3.14159265358979323846 (run (calc ()) "pi")
+
+let test_builtin_constant_tau () =
+  check_top_float "tau" (2.0 *. 3.14159265358979323846) (run (calc ()) "tau")
+
+let test_builtin_constant_e () =
+  check_top_float "e" (exp 1.0) (run (calc ()) "e")
+
+let test_builtin_constant_i () =
+  check_top_complex "i" 0.0 1.0 (run (calc ()) "i")
+
+let test_pi_in_function () =
+  check_top_float "sin(pi / 2)" 1.0 (run (calc ()) "sin(pi / 2)")
+
+let test_builtin_constant_variable_override () =
+  let c = calc () in
+  let c =
+    match run c "pi = 3" with
+    | Ok (c, _) -> c
+    | Error e -> failwith (pp_error e)
+  in
+  check_top_float "pi override" 3.0 (run c "pi")
+
 let algebraic_tests = [
   ("simple arithmetic", `Quick, test_simple_arith);
   ("parentheses", `Quick, test_parens);
@@ -86,4 +127,11 @@ let algebraic_tests = [
   ("empty input", `Quick, test_empty_input);
   ("integer base suffix h", `Quick, test_int_base_suffix);
   ("division", `Quick, test_division);
+  ("built-in constant pi", `Quick, test_builtin_constant_pi);
+  ("built-in constant tau", `Quick, test_builtin_constant_tau);
+  ("built-in constant e", `Quick, test_builtin_constant_e);
+  ("built-in constant i", `Quick, test_builtin_constant_i);
+  ("pi works in functions", `Quick, test_pi_in_function);
+  ("variables override built-in constants", `Quick,
+   test_builtin_constant_variable_override);
 ]

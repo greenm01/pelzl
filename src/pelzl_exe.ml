@@ -11,6 +11,10 @@ let usage_msg = "Pelzl -- a calculator for the console"
 
 let () =
   Arg.parse speclist (fun _ -> ()) usage_msg;
+  let clear_terminal_startup () =
+    print_string Matrix.Ansi.(to_string reset ^ to_string clear_and_home);
+    flush stdout
+  in
   let clear_for_mode_switch matrix =
     let terminal = Matrix.terminal matrix in
     Matrix.Terminal.send terminal
@@ -55,4 +59,5 @@ let () =
       clear_for_mode_switch matrix;
       run next_mode (Some model)
   in
+  clear_terminal_startup ();
   run !mode None

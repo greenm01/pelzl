@@ -332,9 +332,14 @@ let test_repl_alt_r_requests_mode_switch () =
      | _ -> false)
 
 let test_repl_hint_names_key_actions () =
+  check string "hint text"
+    "  ↑↓ history  [Alt-R] RPN  [Ctrl-Q] Quit  :help  :vars"
+    Pelzl_view.repl_hint_text;
   check bool "hint contains Alt-R RPN" true
     (contains_substring Pelzl_view.repl_hint_text "[Alt-R] RPN");
-  check bool "hint contains Ctrl-D Quit" true
+  check bool "hint contains Ctrl-Q Quit" true
+    (contains_substring Pelzl_view.repl_hint_text "[Ctrl-Q] Quit");
+  check bool "hint omits Ctrl-D Quit" false
     (contains_substring Pelzl_view.repl_hint_text "[Ctrl-D] Quit");
   check bool "hint omits :rpn" false
     (contains_substring Pelzl_view.repl_hint_text ":rpn");

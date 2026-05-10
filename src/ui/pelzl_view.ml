@@ -390,7 +390,7 @@ let preview_for calc s : string option =
          | Error _ -> None)
 
 let repl_hint_text =
-  "  ↑↓ history  [Alt-R] RPN  :help  :vars  [Ctrl-D] Quit"
+  "  ↑↓ history  [Alt-R] RPN  [Ctrl-Q] Quit  :help  :vars"
 
 let repl_view model =
   let prompt =

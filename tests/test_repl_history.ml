@@ -68,11 +68,18 @@ let test_meta_help () =
       check bool "omits :rpn" false (contains_substring txt ":rpn");
       check bool "contains [Alt-R] RPN" true
         (contains_substring txt "[Alt-R] RPN");
-      check bool "contains [Ctrl-D] Quit" true
-        (contains_substring txt "[Ctrl-D] Quit");
+      check bool "contains [Ctrl-Q/D] Quit" true
+        (contains_substring txt "[Ctrl-Q/D] Quit");
+      check bool "contains constants" true
+        (contains_substring txt "pi tau e i");
       check bool "omits :exit" false (contains_substring txt ":exit");
       check bool "does not contain :orpie" false (contains_substring txt ":orpie")
   | _ -> fail "expected `Commit with Repl_msg"
+
+let test_repl_msg_lines_preserves_empty_rows () =
+  check (list string) "split blank rows"
+    ["  first"; ""; "  second"; ""]
+    (repl_msg_lines "  first\n\n  second\n")
 
 let test_meta_unknown () =
   let m = model_repl () in
@@ -230,6 +237,8 @@ let repl_history_tests = [
   ("meta :rpn requests classic switch", `Quick, test_meta_rpn);
   ("meta :orpie is unknown", `Quick, test_meta_orpie_is_unknown);
   ("meta :help returns help message", `Quick, test_meta_help);
+  ("repl message lines preserve empty rows", `Quick,
+   test_repl_msg_lines_preserves_empty_rows);
   ("meta unknown command", `Quick, test_meta_unknown);
   ("push_history prepends and dedups", `Quick, test_push_history);
   ("push_history caps at 1000", `Quick, test_push_history_cap);

@@ -349,10 +349,31 @@ let push_float calc f =
     Pelzl_engine.stack_push
       (Pelzl_engine.RpcFloatUnit (f, Units.empty_unit)) calc.Pelzl_engine.stack }
 
+let math_pi = 3.14159265358979323846
+
+let builtin_constant name =
+  match String.lowercase_ascii name with
+  | "pi" ->
+      Some (Pelzl_engine.RpcFloatUnit (math_pi, Units.empty_unit))
+  | "tau" ->
+      Some (Pelzl_engine.RpcFloatUnit (2.0 *. math_pi, Units.empty_unit))
+  | "e" ->
+      Some (Pelzl_engine.RpcFloatUnit (exp 1.0, Units.empty_unit))
+  | "i" ->
+      Some
+        (Pelzl_engine.RpcComplexUnit
+           ({ Complex.re = 0.0; Complex.im = 1.0 }, Units.empty_unit))
+  | _ -> None
+
 let push_var_value calc name =
   let vars = Pelzl_engine.get_variables calc in
   match Hashtbl.find_opt vars name with
-  | None -> Error (E_unknown_var name)
+  | None ->
+      (match builtin_constant name with
+       | None -> Error (E_unknown_var name)
+       | Some v ->
+           Ok { calc with Pelzl_engine.stack =
+                  Pelzl_engine.stack_push v calc.Pelzl_engine.stack })
   | Some v ->
       Ok { calc with Pelzl_engine.stack =
              Pelzl_engine.stack_push v calc.Pelzl_engine.stack }
