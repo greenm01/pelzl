@@ -31,8 +31,15 @@ let test_meta_quit () =
   check (of_pp (fun ppf -> function
       | `Quit -> Format.pp_print_string ppf "quit"
       | `Commit _ -> Format.pp_print_string ppf "commit"
+      | `Switch _ -> Format.pp_print_string ppf "switch"
       | `Unknown -> Format.pp_print_string ppf "unknown"))
     ":quit" `Quit (handle_meta m ":quit")
+
+let test_meta_orpie () =
+  let m = model_repl () in
+  match handle_meta m ":orpie" with
+  | `Switch Classic -> ()
+  | _ -> fail "expected `Switch Classic"
 
 let test_meta_help () =
   let m = model_repl () in
@@ -162,6 +169,16 @@ let test_submit_quit () =
   check bool "quit" true quit;
   check string "entry cleared" "" m'.entry
 
+let test_submit_orpie_switch () =
+  let m = model_repl () in
+  let m = { m with entry = ":orpie"; entry_cursor = 6; error_msg = Some "old" } in
+  let m', action = submit_repl_action m ":orpie" in
+  check bool "switch action" true
+    (match action with Repl_switch Classic -> true | _ -> false);
+  check bool "classic mode" true (m'.ui_mode = Classic);
+  check string "entry cleared" "" m'.entry;
+  check (option string) "error cleared" None m'.error_msg
+
 (* ------------------------------------------------------------------ *)
 (* bind_ans                                                           *)
 (* ------------------------------------------------------------------ *)
@@ -184,6 +201,7 @@ let test_bind_ans () =
 let repl_history_tests = [
   ("trim_ws strips spaces and tabs", `Quick, test_trim_ws);
   ("meta :quit returns `Quit", `Quick, test_meta_quit);
+  ("meta :orpie requests classic switch", `Quick, test_meta_orpie);
   ("meta :help returns help message", `Quick, test_meta_help);
   ("meta unknown command", `Quick, test_meta_unknown);
   ("push_history prepends and dedups", `Quick, test_push_history);
@@ -195,5 +213,6 @@ let repl_history_tests = [
   ("submit algebraic evaluates", `Quick, test_submit_algebraic);
   ("submit error records Repl_err", `Quick, test_submit_error);
   ("submit :quit requests exit", `Quick, test_submit_quit);
+  ("submit :orpie requests mode switch", `Quick, test_submit_orpie_switch);
   ("bind_ans stores result", `Quick, test_bind_ans);
 ]

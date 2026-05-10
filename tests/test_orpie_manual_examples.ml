@@ -532,7 +532,7 @@ let test_command_abbreviation_examples_are_registered () =
     [
       "drop"; "clear"; "swap"; "dup"; "undo"; "rad"; "deg"; "rect";
       "polar"; "bin"; "oct"; "dec"; "hex"; "view"; "edit"; "pi"; "rand";
-      "refresh"; "about"; "quit";
+      "refresh"; "about"; "quit"; "repl";
     ]
   in
   List.iter

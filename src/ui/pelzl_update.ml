@@ -2,6 +2,11 @@ open Pelzl_model
 
 type editor_runner = string -> unit
 
+type repl_submit_action =
+  | Repl_continue
+  | Repl_quit
+  | Repl_switch of ui_mode
+
 (* -------------------------------------------------------------------- *)
 (* Helpers carried over from the legacy RPN/Classic implementation.     *)
 (* The algebraic parser previously embedded here has moved to           *)
@@ -564,7 +569,8 @@ let meta_help_text =
     "  numbers    : 1.5e3, ffh, 101b, 17o, 42d      ";
     "  variables  : name = expr   (also 'ans')      ";
     "  history    : up/down arrows recall lines     ";
-    "  commands   : :vars :purge NAME :help :quit   ";
+    "  commands   : :orpie :vars :purge NAME :help  ";
+    "             : :quit                           ";
     "  exit       : :quit, Ctrl-D (empty), or Ctrl-Q";
   ]
 
@@ -597,7 +603,7 @@ let bind_ans calc =
 (* Returns one of:
    `Quit                  -- user asked to exit
    `Commit (model, record) -- meta-command produced a record to commit
-   `Unknown               -- not a recognised meta-command *)
+   `Switch mode           -- user asked to switch UI runtimes *)
 let handle_meta model raw =
   let s = trim_ws raw in
   let parts =
@@ -606,6 +612,7 @@ let handle_meta model raw =
   in
   match parts with
   | [":quit"] | [":q"] | [":exit"] -> `Quit
+  | [":orpie"] | [":classic"] -> `Switch Classic
   | [":help"] | [":h"] | ["?"] ->
       `Commit (model, Repl_msg meta_help_text)
   | [":vars"] | [":v"] ->
@@ -636,13 +643,13 @@ let push_history model s =
       in
       { model with history }
 
-(* Submit a Repl-mode entry. Returns (model, should_quit). *)
-let submit_repl model raw =
+(* Submit a Repl-mode entry. Returns (model, action). *)
+let submit_repl_action model raw =
   let s = trim_ws raw in
   if s = "" then
     ({ model with entry = ""; entry_cursor = 0; history_idx = None;
                   history_save = ""; error_msg = None;
-                  pending_commit = None }, false)
+                  pending_commit = None }, Repl_continue)
   else
     (* Persist and remember. *)
     let model = push_history model s in
@@ -651,11 +658,13 @@ let submit_repl model raw =
       match handle_meta model s with
       | `Quit ->
           ({ model with entry = ""; entry_cursor = 0; history_idx = None;
-                        history_save = ""; pending_commit = None }, true)
+                        history_save = ""; pending_commit = None }, Repl_quit)
+      | `Switch mode ->
+          normalize_for_mode mode model, Repl_switch mode
       | `Commit (m, rec_) ->
           ({ m with entry = ""; entry_cursor = 0; history_idx = None;
                     history_save = ""; error_msg = None;
-                    pending_commit = Some rec_ }, false)
+                    pending_commit = Some rec_ }, Repl_continue)
     else
       match Pelzl_algebraic.run model.calc s with
       | Ok (new_calc, display) ->
@@ -663,12 +672,16 @@ let submit_repl model raw =
           let rec_ = Repl_ok { input = s; result = display } in
           ({ model with calc = new_calc; entry = ""; entry_cursor = 0; history_idx = None;
                         history_save = ""; error_msg = None;
-                        pending_commit = Some rec_ }, false)
+                        pending_commit = Some rec_ }, Repl_continue)
       | Error e ->
           let rec_ = Repl_err { input = s; error = Pelzl_algebraic.pp_error e } in
           ({ model with entry = ""; entry_cursor = 0; history_idx = None;
                         history_save = ""; error_msg = None;
-                        pending_commit = Some rec_ }, false)
+                        pending_commit = Some rec_ }, Repl_continue)
+
+let submit_repl model raw =
+  let model, action = submit_repl_action model raw in
+  model, action <> Repl_continue
 
 (* History navigation. *)
 let history_prev model =
@@ -755,7 +768,14 @@ let take_pending model =
 
 let quit_cmd = Mosaic.Cmd.quit
 
-let execute_classic_operation editor_runner model op =
+let default_mode_switch _mode _model = ()
+
+let request_mode_switch on_mode_switch mode model =
+  let model = normalize_for_mode mode model in
+  on_mode_switch mode model;
+  model, quit_cmd
+
+let execute_classic_operation on_mode_switch editor_runner model op =
   match op with
   | Operations.Function f ->
       exec_function model f, Mosaic.Cmd.none
@@ -763,6 +783,8 @@ let execute_classic_operation editor_runner model op =
       (match c with
       | Operations.Quit ->
           model, quit_cmd
+      | Operations.SwitchRepl ->
+          request_mode_switch on_mode_switch Repl model
       | Operations.CycleHelp ->
           { model with show_help = not model.show_help }, Mosaic.Cmd.none
       | Operations.BeginAbbrev ->
@@ -811,7 +833,7 @@ let is_backspace_key (data : Input.Key.event) =
   | Char c -> Uchar.to_int c = 0x7f
   | _ -> false
 
-let execute_abbrev editor_runner model =
+let execute_abbrev on_mode_switch editor_runner model =
   if model.entry = "" then
     { model with error_msg = Some "empty abbreviation" }, Mosaic.Cmd.none
   else
@@ -820,7 +842,8 @@ let execute_abbrev editor_runner model =
       { model with error_msg = Some ("unknown abbreviation: " ^ model.entry) },
       Mosaic.Cmd.none
   | Some (_symbol, op) ->
-      execute_classic_operation editor_runner (exit_classic_mode model) op
+      execute_classic_operation on_mode_switch editor_runner
+        (exit_classic_mode model) op
 
 let execute_constant model =
   if model.entry = "" then
@@ -870,10 +893,11 @@ let complete_variable completion_prefix model =
       { (with_entry next { model with error_msg = None })
         with classic_mode = ClassicVariable { completion_prefix = Some prefix } }
 
-let handle_classic_abbrev editor_runner kind model (data : Input.Key.event) =
+let handle_classic_abbrev on_mode_switch editor_runner kind model
+    (data : Input.Key.event) =
   if data.key = Enter then
     match kind with
-    | OperationAbbrev -> execute_abbrev editor_runner model
+    | OperationAbbrev -> execute_abbrev on_mode_switch editor_runner model
     | ConstantAbbrev -> execute_constant model
   else if is_backspace_key data then
     delete_before_cursor model, Mosaic.Cmd.none
@@ -906,17 +930,25 @@ let handle_classic_browse editor_runner model key_binding selected_level hscroll
   with Not_found ->
     { model with error_msg = None }, Mosaic.Cmd.none
 
-let update ?(editor_runner = default_editor_runner) msg model =
+let handle_repl_submit on_mode_switch model raw =
+  let model, action = submit_repl_action model raw in
+  let model, cmd = take_pending model in
+  match action with
+  | Repl_continue -> model, cmd
+  | Repl_quit -> model, quit_cmd
+  | Repl_switch mode ->
+      on_mode_switch mode model;
+      model, quit_cmd
+
+let update ?(editor_runner = default_editor_runner)
+    ?(on_mode_switch = default_mode_switch) msg model =
   match msg with
   | Set_entry s ->
       { (with_entry s model) with history_idx = None;
                              history_save = ""; error_msg = None },
       Mosaic.Cmd.none
   | Submit s ->
-      let model', should_quit = submit_repl model s in
-      let model', cmd = take_pending model' in
-      if should_quit then model', quit_cmd
-      else model', cmd
+      handle_repl_submit on_mode_switch model s
   | History_prev ->
       history_prev model, Mosaic.Cmd.none
   | History_next ->
@@ -969,10 +1001,7 @@ let update ?(editor_runner = default_editor_runner) msg model =
         | End -> cursor_end model, Mosaic.Cmd.none
         | Delete -> delete_at_cursor model, Mosaic.Cmd.none
         | Enter ->
-            let model', should_quit = submit_repl model model.entry in
-            let model', cmd = take_pending model' in
-            if should_quit then model', quit_cmd
-            else model', cmd
+            handle_repl_submit on_mode_switch model model.entry
         | Backspace ->
             delete_before_cursor model, Mosaic.Cmd.none
         | Char c when data.modifier.ctrl
@@ -987,7 +1016,7 @@ let update ?(editor_runner = default_editor_runner) msg model =
       else
         (match model.classic_mode with
         | ClassicAbbrev kind ->
-            handle_classic_abbrev editor_runner kind model data
+            handle_classic_abbrev on_mode_switch editor_runner kind model data
         | ClassicVariable { completion_prefix } ->
             handle_classic_variable completion_prefix model data
         | ClassicBrowse { selected_level; hscroll } ->
@@ -1015,7 +1044,7 @@ let update ?(editor_runner = default_editor_runner) msg model =
                Some (Operations.Edit e))
         in
         (match op_opt with
-        | Some op -> execute_classic_operation editor_runner model op
+        | Some op -> execute_classic_operation on_mode_switch editor_runner model op
         | None ->
             (match data.key with
             | Char c when not data.modifier.ctrl && not data.modifier.alt
@@ -1026,10 +1055,7 @@ let update ?(editor_runner = default_editor_runner) msg model =
       delete_before_cursor model, Mosaic.Cmd.none
   | Enter ->
       if model.ui_mode = Repl then
-        let model', should_quit = submit_repl model model.entry in
-        let model', cmd = take_pending model' in
-        if should_quit then model', quit_cmd
-        else model', cmd
+        handle_repl_submit on_mode_switch model model.entry
       else
         { (push_entry model) with error_msg = None }, Mosaic.Cmd.none
   | Clear_error ->

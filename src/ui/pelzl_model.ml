@@ -144,9 +144,34 @@ let register_default_bindings () =
   bind "'" (Command BeginAbbrev);
   bind "@" (Command BeginVar);
   bind "R" (Command SetRadians);
+  Rcfile.register_abbrev "repl" (Command SwitchRepl);
   ()
 
-let init mode () =
+let normalize_for_mode mode model =
+  let history =
+    match mode with
+    | Repl -> Pelzl_history.load ()
+    | Classic -> []
+  in
+  { model with
+    entry = "";
+    entry_cursor = 0;
+    entry_mode = Normal;
+    classic_mode = ClassicMain;
+    ui_mode = mode;
+    error_msg = None;
+    history;
+    history_idx = None;
+    history_save = "";
+    show_help = false;
+    help_page = 0;
+    pending_commit = None }
+
+let init ?initial_model mode () =
+  match initial_model with
+  | Some model ->
+      normalize_for_mode mode model, Mosaic.Cmd.none
+  | None ->
   register_default_bindings ();
   (try Rcfile.process_rcfile None with _ -> ());
   Random.self_init ();

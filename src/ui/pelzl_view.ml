@@ -109,6 +109,7 @@ let classic_help_rows model left_width height =
     "  scientific notation     : <space>   ";
     "  abbreviation entry mode : '         ";
     "  stack browsing mode     : <up>      ";
+    "  repl mode               : 'repl RET ";
     "  refresh display         : C-L       ";
     "  quit                    : Q         ";
   ]

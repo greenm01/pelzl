@@ -143,6 +143,25 @@ let top_int model =
   | Pelzl_engine.RpcInt i -> Big_int.int_of_big_int i
   | _ -> fail "expected integer on stack"
 
+let test_normalize_for_mode_preserves_calc_and_clears_ui_state () =
+  let model = classic_with_ints [42] in
+  let model =
+    { model with entry = "123"; entry_cursor = 3; error_msg = Some "old";
+                 classic_mode = ClassicAbbrev OperationAbbrev;
+                 history = ["trace"]; history_idx = Some 0;
+                 history_save = "saved"; show_help = true; help_page = 1 }
+  in
+  let model' = normalize_for_mode Repl model in
+  check bool "repl mode" true (model'.ui_mode = Repl);
+  check int "stack preserved" 42 (top_int model');
+  check string "entry cleared" "" model'.entry;
+  check int "cursor reset" 0 model'.entry_cursor;
+  check (option string) "error cleared" None model'.error_msg;
+  check bool "classic mode reset" true (model'.classic_mode = ClassicMain);
+  check (option int) "history idx reset" None model'.history_idx;
+  check string "history save reset" "" model'.history_save;
+  check bool "help reset" false model'.show_help
+
 let cmd_is_quit = function
   | Mosaic.Cmd.Quit -> true
   | _ -> false
@@ -273,6 +292,49 @@ let test_repl_colon_quit_enter_returns_quit () =
   let _model', cmd = update (Key_input (key Input.Key.Enter)) model in
   check bool "quit command" true (cmd_is_quit cmd)
 
+let test_repl_orpie_enter_requests_mode_switch () =
+  let requested = ref None in
+  let on_mode_switch mode model = requested := Some (mode, model) in
+  let model, _cmd = init Repl () in
+  let model =
+    { model with entry = ":orpie"; entry_cursor = 6;
+                 calc = (classic_with_ints [42]).calc }
+  in
+  let model', cmd =
+    update ~on_mode_switch (Key_input (key Input.Key.Enter)) model
+  in
+  check bool "quit for runtime handoff" true (cmd_is_quit cmd);
+  check bool "returned classic model" true (model'.ui_mode = Classic);
+  check int "stack preserved" 42 (top_int model');
+  check bool "callback called" true
+    (match !requested with
+     | Some (Classic, m) -> m.ui_mode = Classic && top_int m = 42
+     | _ -> false)
+
+let test_classic_repl_abbrev_requests_mode_switch () =
+  Rcfile.register_abbrev "repl" (Operations.Command Operations.SwitchRepl);
+  let requested = ref None in
+  let on_mode_switch mode model = requested := Some (mode, model) in
+  let model =
+    { (classic_with_ints [42]) with
+      classic_mode = ClassicAbbrev OperationAbbrev;
+      entry = "repl";
+      entry_cursor = 4;
+      history = ["trace"];
+      show_help = true }
+  in
+  let model', cmd =
+    update ~on_mode_switch (Key_input (key Input.Key.Enter)) model
+  in
+  check bool "quit for runtime handoff" true (cmd_is_quit cmd);
+  check bool "returned repl model" true (model'.ui_mode = Repl);
+  check int "stack preserved" 42 (top_int model');
+  check string "entry cleared" "" model'.entry;
+  check bool "callback called" true
+    (match !requested with
+     | Some (Repl, m) -> m.ui_mode = Repl && top_int m = 42
+     | _ -> false)
+
 let test_raw_ctrl_d_quits_repl_only_when_entry_empty () =
   let model, _cmd = init Repl () in
   let _model', cmd = update (Key_input (raw_ctrl_char 0x04)) model in
@@ -352,6 +414,8 @@ let ui_tests = [
   ("update toggle help", `Quick, test_toggle_help);
   ("update resize changes dimensions", `Quick, test_resize);
   ("ui mode selection", `Quick, test_ui_modes);
+  ("mode switch normalization", `Quick,
+   test_normalize_for_mode_preserves_calc_and_clears_ui_state);
   ("classic starts in Orpie modes", `Quick, test_classic_initial_modes_match_orpie);
   ("classic enter pushes entry", `Quick, test_classic_enter_pushes_entry);
   ("classic drop key drops", `Quick, test_classic_drop_key_drops);
@@ -369,6 +433,10 @@ let ui_tests = [
   ("raw Ctrl-Q quits repl even with entry", `Quick, test_raw_ctrl_q_quits_repl_even_with_entry);
   ("uppercase Ctrl-Q quits repl even with entry", `Quick, test_uppercase_ctrl_q_quits_repl_even_with_entry);
   ("repl :quit enter returns quit", `Quick, test_repl_colon_quit_enter_returns_quit);
+  ("repl :orpie enter requests mode switch", `Quick,
+   test_repl_orpie_enter_requests_mode_switch);
+  ("classic 'repl abbreviation requests mode switch", `Quick,
+   test_classic_repl_abbrev_requests_mode_switch);
   ("raw Ctrl-D quits repl only when empty", `Quick, test_raw_ctrl_d_quits_repl_only_when_entry_empty);
   ("uppercase Ctrl-D quits repl only when empty", `Quick, test_uppercase_ctrl_d_quits_repl_only_when_entry_empty);
   ("raw Ctrl-Q quits classic", `Quick, test_raw_ctrl_q_quits_classic);

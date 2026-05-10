@@ -402,6 +402,7 @@ let operation_of_string command_str =
    |"command_rand"                  -> (Command Rand)
    |"command_edit_input"            -> (Command EditInput)
    |"command_cycle_help"            -> (Command CycleHelp)
+   |"command_repl"                  -> (Command SwitchRepl)
    |"browse_end"                    -> (Browse EndBrowse)
    |"browse_scroll_left"            -> (Browse ScrollLeft)
    |"browse_scroll_right"           -> (Browse ScrollRight)
