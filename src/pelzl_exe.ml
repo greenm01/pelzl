@@ -1,10 +1,10 @@
-let mode = ref Pelzl_model.Repl
+let mode = ref Pelzl_model.Classic
 
 let speclist = [
-  ("--repl",  Arg.Unit (fun () -> mode := Repl),
-              "Use sober algebraic REPL (default)");
   ("--rpn", Arg.Unit (fun () -> mode := Classic),
-              "Use classic RPN UI");
+              "Use classic RPN UI (default)");
+  ("--repl",  Arg.Unit (fun () -> mode := Repl),
+              "Use sober algebraic REPL");
 ]
 
 let usage_msg = "Pelzl -- a calculator for the console"

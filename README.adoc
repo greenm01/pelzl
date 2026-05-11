@@ -1,17 +1,17 @@
 Pelzl
 =====
 
-Pelzl is a terminal calculator designed for precision and speed. It provides a robust algebraic REPL by default, while offering a classic RPN interface for those who prefer the traditional stack.
+Pelzl is a terminal calculator designed for precision and speed. It provides a classic RPN interface by default, while offering a robust algebraic REPL for those who prefer a modern expression-based workflow.
 
 This project is an evolution of the Orpie calculator and is dedicated to the memory of its original author, https://web.archive.org/web/20230529194200/https://www.bradshawfuneral.com/obituaries/paul-pelzl[Paul Pelzl].
 
 == Features
 
-* **Algebraic REPL**: Evaluate expressions naturally: `(5 + 3) * 2`.
+* **Classic RPN UI**: A traditional stack-based workflow, right out of the box.
+* **Algebraic REPL**: Evaluate expressions naturally: `(5 + 3) * 2`. Launch with `--repl`.
 * **Implicit Multiplication**: Support for concise notation, such as `5sin(30)` or `2x`.
 * **Variable Assignment**: Persist values with simple declarations: `x = 42`.
 * **Mathematical Functions**: Comprehensive support for `sin`, `cos`, `sqrt`, `ln`, and more.
-* **Classic RPN Mode**: Revert to the traditional stack-based workflow with the `--rpn` flag.
 * **Mosaic TUI**: A responsive, colorful interface built on the Mosaic library.
 
 == Installation
@@ -40,11 +40,11 @@ make install
 
 == Usage
 
-Launch the algebraic REPL by running `pelzl`. To use the classic RPN interface, run:
+Launch the classic RPN interface by running `pelzl`. To use the algebraic REPL, run:
 
 [source,shell]
 ----
-pelzl --rpn
+pelzl --repl
 ----
 
 Consult the `doc` directory for further details.
